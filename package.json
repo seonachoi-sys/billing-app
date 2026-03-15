@@ -2,7 +2,7 @@
   "name": "sales-billing-app",
   "version": "1.0.0",
   "private": true,
-  "homepage": "https://seonachoi-sys.github.io/management-app",
+  "homepage": "https://seonachoi-sys.github.io/billing-app",
   "dependencies": {
     "autoprefixer": "^10.4.0",
     "postcss": "^8.4.0",
