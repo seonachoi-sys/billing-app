@@ -17,7 +17,7 @@ function resolveQty(companyQty, hospitalQty) {
 }
 
 const MonthlyBilling = () => {
-  const { ledger, hospitals, updateLedgerEntry, generateMonthlyEntries } = useData();
+  const { ledger, hospitals, updateLedgerEntry, deleteLedgerEntry, generateMonthlyEntries } = useData();
 
   const [billingMonth, setBillingMonth] = useState(() => {
     const d = new Date();
@@ -130,7 +130,40 @@ const MonthlyBilling = () => {
     alert(`${targets.length}건 청구확정 완료`);
   };
 
-  // 월 이동
+  // 이 달 청구 일괄 삭제
+  const handleDeleteMonth = () => {
+    if (monthItems.length === 0) return;
+    const confirmed = monthItems.filter(i => i['채권상태'] === '청구확정' || i['채권상태'] === '완납');
+    if (confirmed.length > 0) {
+      alert(`청구확정/완납 ${confirmed.length}건이 포함되어 있습니다.\n해당 건의 상태를 먼저 변경해주세요.`);
+      return;
+    }
+    if (!window.confirm(`${billingMonth} 청구 ${monthItems.length}건을 모두 삭제하시겠습니까?`)) return;
+    monthItems.forEach(item => deleteLedgerEntry(item._id));
+    alert(`${monthItems.length}건 삭제 완료`);
+  };
+
+  // 이 달 청구 → 다른 월로 이동
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [moveTarget, setMoveTarget] = useState('');
+
+  const handleMoveMonth = () => {
+    if (!moveTarget || moveTarget === billingMonth) return;
+    const confirmed = monthItems.filter(i => i['채권상태'] === '청구확정' || i['채권상태'] === '완납');
+    if (confirmed.length > 0) {
+      alert(`청구확정/완납 ${confirmed.length}건이 포함되어 있습니다.\n해당 건의 상태를 먼저 변경해주세요.`);
+      return;
+    }
+    if (!window.confirm(`${billingMonth} → ${moveTarget}로 ${monthItems.length}건을 이동하시겠습니까?`)) return;
+    monthItems.forEach(item => {
+      updateLedgerEntry(item._id, { '청구기준': moveTarget, '발생기준': moveTarget });
+    });
+    alert(`${monthItems.length}건을 ${moveTarget}로 이동했습니다.`);
+    setShowMoveModal(false);
+    setBillingMonth(moveTarget);
+  };
+
+  // 월 이동 (뷰 전환)
   const changeMonth = (delta) => {
     const [y, m] = billingMonth.split('-').map(Number);
     const d = new Date(y, m - 1 + delta, 1);
@@ -151,7 +184,7 @@ const MonthlyBilling = () => {
             <button onClick={() => changeMonth(1)}
               className="px-3 py-2 border rounded-md text-sm hover:bg-gray-50">&rarr;</button>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {!hasData && (
               <button onClick={handleGenerate}
                 className="bg-green-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-600">
@@ -159,10 +192,20 @@ const MonthlyBilling = () => {
               </button>
             )}
             {hasData && (
-              <button onClick={handleBulkConfirm}
-                className="bg-blue-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-600">
-                수량확정 → 청구확정
-              </button>
+              <>
+                <button onClick={() => { setMoveTarget(''); setShowMoveModal(true); }}
+                  className="border border-gray-300 text-gray-600 px-3 py-2 rounded-md text-sm hover:bg-gray-50">
+                  월 이동
+                </button>
+                <button onClick={handleDeleteMonth}
+                  className="border border-red-300 text-red-500 px-3 py-2 rounded-md text-sm hover:bg-red-50">
+                  이 달 삭제
+                </button>
+                <button onClick={handleBulkConfirm}
+                  className="bg-blue-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-600">
+                  수량확정 → 청구확정
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -352,6 +395,38 @@ const MonthlyBilling = () => {
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* 월 이동 모달 */}
+      {showMoveModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <h3 className="text-lg font-bold text-gray-800">청구 월 이동</h3>
+              <button onClick={() => setShowMoveModal(false)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600">
+                <span className="font-semibold">{billingMonth}</span>의 {monthItems.length}건을 다른 월로 이동합니다.
+              </p>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">이동할 월</label>
+                <input type="month" value={moveTarget}
+                  onChange={e => setMoveTarget(e.target.value)}
+                  className="w-full border rounded-md px-3 py-2 text-sm" />
+              </div>
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setShowMoveModal(false)}
+                  className="px-4 py-2 border rounded-md text-sm text-gray-600 hover:bg-gray-50">취소</button>
+                <button onClick={handleMoveMonth}
+                  disabled={!moveTarget || moveTarget === billingMonth}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md text-sm font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                  이동
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
