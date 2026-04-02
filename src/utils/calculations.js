@@ -50,6 +50,24 @@ export function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
+// 병원구분 자동 분류 (거래처명 기반)
+// 상급종합병원: 대학교병원, 대학부속병원, 의과대학, 세브란스, 서울아산 등
+// 종합병원: 백병원, 성모병원, 의료원, 센터 등
+// 병원: ~병원
+// 의원: ~의원, ~내과, ~안과, ~외과, ~클리닉
+export function classifyHospital(name) {
+  if (!name) return '미분류';
+  // 상급종합 키워드
+  if (/대학교.*병원|대학.*부속|의과대학|세브란스|서울아산|삼성서울|서울대병원/.test(name)) return '상급종합';
+  // 종합병원 키워드
+  if (/백병원|성모병원|의료원|센터병원|적십자|보훈|국립.*병원/.test(name)) return '종합';
+  // 의원급
+  if (/의원|내과|안과|외과|클리닉|치과|피부과|이비인후과|소아과|산부인과/.test(name)) return '의원';
+  // 그 외 병원
+  if (/병원/.test(name)) return '병원';
+  return '미분류';
+}
+
 // 다음 업체코드 생성 (C0001, C0002, ...)
 export function generateClientCode(hospitals) {
   const codes = hospitals

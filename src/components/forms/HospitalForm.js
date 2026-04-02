@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useData } from '../../context/DataContext';
-import { generateClientCode, calculateVAT } from '../../utils/calculations';
+import { generateClientCode, calculateVAT, classifyHospital } from '../../utils/calculations';
+
+// 영업담당자 목록
+const SALES_REPS = ['류성현', '이상신', '이정태', '이경준'];
 
 const HospitalForm = ({ onClose, editHospital = null }) => {
   const { hospitals, addHospital, updateHospital, addContract } = useData();
 
   const [form, setForm] = useState({
-    '업체코드': '', '병원구분': '로컬', '거래처명': '', '진료과': '내과',
+    '업체코드': '', '병원구분': '의원', '거래처명': '', '진료과': '내과',
     '담당의사': '', '제품명': 'CAS', '납품가': '', '청구형태': '직납',
-    '정산주기': '60일', '담당사번': '', '병원': '', '병원 연락처': '',
-    '업체': '', '비고': '',
+    '정산주기': '60일', '영업담당자': '', '병원담당자명': '', '병원담당자전화': '',
+    '병원담당자이메일': '', '업체': '', '비고': '',
     // 계약 정보
     '계약일': '', '갱신': '',
   });
@@ -22,11 +25,23 @@ const HospitalForm = ({ onClose, editHospital = null }) => {
           Object.entries(editHospital).filter(([k]) => k in prev)
         ),
         '납품가': String(editHospital['납품가'] || ''),
+        // 기존 데이터 마이그레이션: 담당사번 → 영업담당자
+        '영업담당자': editHospital['영업담당자'] || editHospital['담당사번'] || '',
+        // 기존 연락처 마이그레이션
+        '병원담당자명': editHospital['병원담당자명'] || editHospital['병원'] || '',
+        '병원담당자전화': editHospital['병원담당자전화'] || '',
+        '병원담당자이메일': editHospital['병원담당자이메일'] || '',
       }));
     } else {
       setForm(prev => ({ ...prev, '업체코드': generateClientCode(hospitals) }));
     }
   }, [editHospital, hospitals]);
+
+  // 거래처명 변경 시 병원구분 자동 분류
+  const handleNameChange = (name) => {
+    const autoType = classifyHospital(name);
+    setForm(f => ({ ...f, '거래처명': name, '병원구분': autoType }));
+  };
 
   const deliveryPrice = parseInt(form['납품가']) || 0;
   const { supply, vat } = calculateVAT(deliveryPrice);
@@ -47,9 +62,10 @@ const HospitalForm = ({ onClose, editHospital = null }) => {
       '부가세': vat,
       '청구형태': form['청구형태'],
       '정산주기': form['정산주기'],
-      '담당사번': form['담당사번'],
-      '병원': form['병원'],
-      '병원 연락처': form['병원 연락처'],
+      '영업담당자': form['영업담당자'],
+      '병원담당자명': form['병원담당자명'],
+      '병원담당자전화': form['병원담당자전화'],
+      '병원담당자이메일': form['병원담당자이메일'],
       '업체': form['업체'],
       '비고': form['비고'],
     };
@@ -58,7 +74,6 @@ const HospitalForm = ({ onClose, editHospital = null }) => {
       updateHospital(editHospital._id, hospital);
     } else {
       addHospital(hospital);
-      // 계약 정보도 함께 등록
       if (form['계약일']) {
         addContract({
           '거래처': form['거래처명'],
@@ -69,7 +84,7 @@ const HospitalForm = ({ onClose, editHospital = null }) => {
           'VAT포함': deliveryPrice + '원',
           '정산주기': form['정산주기'],
           '비고': form['비고'],
-          '담당자': form['담당사번'],
+          '담당자': form['영업담당자'],
         });
       }
     }
@@ -99,9 +114,13 @@ const HospitalForm = ({ onClose, editHospital = null }) => {
               <label className="block text-sm text-gray-600 mb-1">병원구분</label>
               <select value={form['병원구분']} onChange={set('병원구분')}
                 className="w-full border rounded-md px-3 py-2 text-sm">
-                <option value="로컬">로컬</option>
-                <option value="상급">상급</option>
+                <option value="상급종합">상급종합</option>
+                <option value="종합">종합</option>
+                <option value="병원">병원</option>
+                <option value="의원">의원</option>
+                <option value="미분류">미분류</option>
               </select>
+              <p className="text-xs text-gray-400 mt-0.5">거래처명 입력 시 자동 분류</p>
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-1">청구형태</label>
@@ -116,7 +135,8 @@ const HospitalForm = ({ onClose, editHospital = null }) => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-gray-600 mb-1">거래처명 *</label>
-              <input type="text" value={form['거래처명']} onChange={set('거래처명')}
+              <input type="text" value={form['거래처명']}
+                onChange={e => handleNameChange(e.target.value)}
                 className="w-full border rounded-md px-3 py-2 text-sm" required />
             </div>
             <div>
@@ -169,28 +189,45 @@ const HospitalForm = ({ onClose, editHospital = null }) => {
               </select>
             </div>
             <div>
-              <label className="block text-sm text-gray-600 mb-1">담당사번</label>
-              <input type="text" value={form['담당사번']} onChange={set('담당사번')}
-                className="w-full border rounded-md px-3 py-2 text-sm" />
+              <label className="block text-sm text-gray-600 mb-1">영업담당자</label>
+              <select value={form['영업담당자']} onChange={set('영업담당자')}
+                className="w-full border rounded-md px-3 py-2 text-sm">
+                <option value="">선택</option>
+                {SALES_REPS.map(name => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">병원 담당자</label>
-              <input type="text" value={form['병원']} onChange={set('병원')}
-                className="w-full border rounded-md px-3 py-2 text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">병원 연락처</label>
-              <input type="text" value={form['병원 연락처']} onChange={set('병원 연락처')}
-                className="w-full border rounded-md px-3 py-2 text-sm" />
+          {/* 병원 담당자 정보 */}
+          <div className="border-t pt-4 mt-2">
+            <h4 className="text-sm font-semibold text-gray-700 mb-3">병원 담당자 정보</h4>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">담당자명</label>
+                <input type="text" value={form['병원담당자명']} onChange={set('병원담당자명')}
+                  placeholder="홍길동"
+                  className="w-full border rounded-md px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">전화번호</label>
+                <input type="tel" value={form['병원담당자전화']} onChange={set('병원담당자전화')}
+                  placeholder="010-1234-5678"
+                  className="w-full border rounded-md px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">이메일</label>
+                <input type="email" value={form['병원담당자이메일']} onChange={set('병원담당자이메일')}
+                  placeholder="email@hospital.kr"
+                  className="w-full border rounded-md px-3 py-2 text-sm" />
+              </div>
             </div>
           </div>
 
           {/* 계약 정보 (신규 등록 시만) */}
           {!editHospital && (
-            <div className="border-t pt-4 mt-4">
+            <div className="border-t pt-4 mt-2">
               <h4 className="text-sm font-semibold text-gray-700 mb-3">계약 정보</h4>
               <div className="grid grid-cols-2 gap-4">
                 <div>

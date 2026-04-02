@@ -61,7 +61,15 @@ const HospitalManagement = () => {
                   }`}>
                   <div className="text-sm font-medium text-gray-800">{h['거래처명']}</div>
                   <div className="text-xs text-gray-400 mt-0.5 flex justify-between">
-                    <span>{h['병원구분']} · {h['진료과']} · {h['제품명']}</span>
+                    <span>
+                      <span className={`inline-block px-1 py-0.5 rounded text-xs mr-1 ${
+                        h['병원구분'] === '상급종합' || h['병원구분'] === '상급' ? 'bg-purple-100 text-purple-600' :
+                        h['병원구분'] === '종합' ? 'bg-blue-100 text-blue-600' :
+                        h['병원구분'] === '병원' ? 'bg-green-100 text-green-600' :
+                        'bg-gray-100 text-gray-500'
+                      }`}>{h['병원구분']}</span>
+                      {h['진료과']} · {h['제품명']}
+                    </span>
                     {summary.outstanding > 0 && (
                       <span className="text-red-500">미수 {fmt(summary.outstanding)}</span>
                     )}
@@ -90,18 +98,36 @@ const HospitalManagement = () => {
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
                 <div><span className="text-gray-500">업체코드:</span> <span className="font-medium">{detail.hospital['업체코드']}</span></div>
-                <div><span className="text-gray-500">병원구분:</span> <span className="font-medium">{detail.hospital['병원구분']}</span></div>
+                <div><span className="text-gray-500">병원구분:</span> <span className={`font-medium px-1.5 py-0.5 rounded text-xs ${
+                  detail.hospital['병원구분'] === '상급종합' ? 'bg-purple-100 text-purple-700' :
+                  detail.hospital['병원구분'] === '종합' ? 'bg-blue-100 text-blue-700' :
+                  detail.hospital['병원구분'] === '병원' ? 'bg-green-100 text-green-700' :
+                  'bg-gray-100 text-gray-700'
+                }`}>{detail.hospital['병원구분']}</span></div>
                 <div><span className="text-gray-500">진료과:</span> <span className="font-medium">{detail.hospital['진료과']}</span></div>
                 <div><span className="text-gray-500">담당의사:</span> <span className="font-medium">{detail.hospital['담당의사']}</span></div>
                 <div><span className="text-gray-500">제품:</span> <span className="font-medium">{detail.hospital['제품명']}</span></div>
                 <div><span className="text-gray-500">청구형태:</span> <span className="font-medium">{detail.hospital['청구형태']}</span></div>
                 <div><span className="text-gray-500">납품가:</span> <span className="font-medium">{fmt(detail.hospital['납품가'])}원</span></div>
                 <div><span className="text-gray-500">정산주기:</span> <span className="font-medium">{detail.hospital['정산주기']}</span></div>
-                <div><span className="text-gray-500">담당사번:</span> <span className="font-medium">{detail.hospital['담당사번']}</span></div>
-                {detail.hospital['병원'] && <div><span className="text-gray-500">병원 담당:</span> <span className="font-medium">{detail.hospital['병원']}</span></div>}
-                {detail.hospital['병원 연락처'] && <div><span className="text-gray-500">연락처:</span> <span className="font-medium">{detail.hospital['병원 연락처']}</span></div>}
-                {detail.hospital['비고'] && <div className="col-span-2"><span className="text-gray-500">비고:</span> <span className="font-medium">{detail.hospital['비고']}</span></div>}
+                <div><span className="text-gray-500">영업담당자:</span> <span className="font-medium">{detail.hospital['영업담당자'] || detail.hospital['담당사번'] || '-'}</span></div>
               </div>
+
+              {/* 병원 담당자 정보 */}
+              {(detail.hospital['병원담당자명'] || detail.hospital['병원담당자전화'] || detail.hospital['병원담당자이메일'] || detail.hospital['병원'] || detail.hospital['병원 연락처']) && (
+                <div className="mt-4 pt-3 border-t">
+                  <h4 className="text-xs font-semibold text-gray-500 mb-2">병원 담당자</h4>
+                  <div className="grid grid-cols-3 gap-3 text-sm">
+                    <div><span className="text-gray-500">이름:</span> <span className="font-medium">{detail.hospital['병원담당자명'] || detail.hospital['병원'] || '-'}</span></div>
+                    <div><span className="text-gray-500">전화:</span> <span className="font-medium">{detail.hospital['병원담당자전화'] || (detail.hospital['병원 연락처'] && !/[@.]/.test(detail.hospital['병원 연락처']) ? detail.hospital['병원 연락처'] : '-')}</span></div>
+                    <div><span className="text-gray-500">이메일:</span> <span className="font-medium">{detail.hospital['병원담당자이메일'] || (detail.hospital['병원 연락처'] && /@/.test(detail.hospital['병원 연락처']) ? detail.hospital['병원 연락처'] : '-')}</span></div>
+                  </div>
+                </div>
+              )}
+
+              {detail.hospital['비고'] && (
+                <div className="mt-3 text-sm"><span className="text-gray-500">비고:</span> <span className="font-medium">{detail.hospital['비고']}</span></div>
+              )}
             </div>
 
             {/* 계약 정보 */}
