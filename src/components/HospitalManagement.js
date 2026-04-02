@@ -4,10 +4,11 @@ import { fmt } from '../utils/calculations';
 import HospitalForm from './forms/HospitalForm';
 
 const HospitalManagement = () => {
-  const { hospitals, ledger, master, getHospitalSummary, deleteHospital } = useData();
+  const { hospitals, ledger, master, getHospitalSummary, deleteHospital, updateContract } = useData();
   const [selectedHospital, setSelectedHospital] = useState(null);
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [editingContract, setEditingContract] = useState(null);
   const [editHospital, setEditHospital] = useState(null);
 
   const filteredHospitals = hospitals.filter(h =>
@@ -133,13 +134,84 @@ const HospitalManagement = () => {
             {/* 계약 정보 */}
             {detail.contract && (
               <div className="bg-white rounded-lg shadow p-5">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">계약 정보</h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                  <div><span className="text-gray-500">계약일:</span> <span className="font-medium">{detail.contract['계약일']}</span></div>
-                  <div><span className="text-gray-500">갱신:</span> <span className="font-medium">{detail.contract['갱신'] || '-'}</span></div>
-                  <div><span className="text-gray-500">계약단가:</span> <span className="font-medium">{detail.contract['계약단가']}</span></div>
-                  <div><span className="text-gray-500">VAT포함:</span> <span className="font-medium">{detail.contract['VAT포함']}</span></div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-gray-700">계약 정보</h4>
+                  {editingContract?._id === detail.contract._id ? (
+                    <div className="flex gap-2">
+                      <button onClick={() => {
+                        updateContract(editingContract._id, editingContract);
+                        setEditingContract(null);
+                      }} className="text-xs text-blue-500 hover:text-blue-700 px-2 py-1 border rounded">저장</button>
+                      <button onClick={() => setEditingContract(null)}
+                        className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 border rounded">취소</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setEditingContract({ ...detail.contract })}
+                      className="text-xs text-blue-500 hover:text-blue-700 px-2 py-1 border rounded">수정</button>
+                  )}
                 </div>
+                {editingContract?._id === detail.contract._id ? (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">계약일</label>
+                      <input type="date" value={editingContract['계약일'] || ''}
+                        onChange={e => setEditingContract(c => ({ ...c, '계약일': e.target.value }))}
+                        className="w-full border rounded px-2 py-1 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">갱신</label>
+                      <select value={editingContract['갱신'] || ''}
+                        onChange={e => setEditingContract(c => ({ ...c, '갱신': e.target.value }))}
+                        className="w-full border rounded px-2 py-1 text-sm">
+                        <option value="">선택</option>
+                        <option value="1년">1년</option>
+                        <option value="2년">2년</option>
+                        <option value="3년">3년</option>
+                        <option value="5년">5년</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">계약단가</label>
+                      <input type="text" value={editingContract['계약단가'] || ''}
+                        onChange={e => setEditingContract(c => ({ ...c, '계약단가': e.target.value }))}
+                        className="w-full border rounded px-2 py-1 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">VAT포함</label>
+                      <input type="text" value={editingContract['VAT포함'] || ''}
+                        onChange={e => setEditingContract(c => ({ ...c, 'VAT포함': e.target.value }))}
+                        className="w-full border rounded px-2 py-1 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">정산주기</label>
+                      <input type="text" value={editingContract['정산주기'] || ''}
+                        onChange={e => setEditingContract(c => ({ ...c, '정산주기': e.target.value }))}
+                        className="w-full border rounded px-2 py-1 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">담당자</label>
+                      <input type="text" value={editingContract['담당자'] || ''}
+                        onChange={e => setEditingContract(c => ({ ...c, '담당자': e.target.value }))}
+                        className="w-full border rounded px-2 py-1 text-sm" />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-xs text-gray-500 mb-1">비고</label>
+                      <input type="text" value={editingContract['비고'] || ''}
+                        onChange={e => setEditingContract(c => ({ ...c, '비고': e.target.value }))}
+                        className="w-full border rounded px-2 py-1 text-sm" />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                    <div><span className="text-gray-500">계약일:</span> <span className="font-medium">{detail.contract['계약일']}</span></div>
+                    <div><span className="text-gray-500">갱신:</span> <span className="font-medium">{detail.contract['갱신'] || '-'}</span></div>
+                    <div><span className="text-gray-500">계약단가:</span> <span className="font-medium">{detail.contract['계약단가']}</span></div>
+                    <div><span className="text-gray-500">VAT포함:</span> <span className="font-medium">{detail.contract['VAT포함']}</span></div>
+                    {detail.contract['정산주기'] && <div><span className="text-gray-500">정산주기:</span> <span className="font-medium">{detail.contract['정산주기']}</span></div>}
+                    {detail.contract['담당자'] && <div><span className="text-gray-500">담당자:</span> <span className="font-medium">{detail.contract['담당자']}</span></div>}
+                    {detail.contract['비고'] && <div className="col-span-2"><span className="text-gray-500">비고:</span> <span className="font-medium">{detail.contract['비고']}</span></div>}
+                  </div>
+                )}
               </div>
             )}
 
