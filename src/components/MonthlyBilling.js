@@ -2,6 +2,20 @@ import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { calculateVAT, calculateDueDate, fmt } from '../utils/calculations';
 
+// 수량 차이 허용 범위
+const QTY_TOLERANCE = 20;
+
+// 회사수량 vs 병원수량 비교 → 청구 기준 수량 자동 결정
+function resolveQty(companyQty, hospitalQty) {
+  const diff = Math.abs(companyQty - hospitalQty);
+  if (diff <= QTY_TOLERANCE) {
+    // 차이 20 이내 → 병원수량 기준 청구
+    return { billingQty: hospitalQty, status: 'ok', diff };
+  }
+  // 차이 20 초과 → 확인 필요 (일단 병원수량 유지하되 경고)
+  return { billingQty: hospitalQty, status: 'warn', diff };
+}
+
 const MonthlyBilling = () => {
   const { ledger, hospitals, updateLedgerEntry, generateMonthlyEntries } = useData();
 
@@ -23,7 +37,12 @@ const MonthlyBilling = () => {
     const total = monthItems.reduce((s, i) => s + (i['청구금액'] || 0), 0);
     const confirmed = monthItems.filter(i => i['수량확정'] === 'TRUE').length;
     const invoiced = monthItems.filter(i => i['계산서'] === 'TRUE').length;
-    return { total, confirmed, invoiced, count: monthItems.length };
+    const qtyWarnings = monthItems.filter(i => {
+      const c = parseInt(i['당월발생']) || 0;
+      const h = parseInt(i['병원수량']) || 0;
+      return c > 0 && h > 0 && resolveQty(c, h).status === 'warn';
+    }).length;
+    return { total, confirmed, invoiced, count: monthItems.length, qtyWarnings };
   }, [monthItems]);
 
   // 월별 자동 생성
@@ -36,64 +55,53 @@ const MonthlyBilling = () => {
     }
   };
 
-  // 병원수량 변경 → 자동 계산
-  const handleQtyChange = (item, newQty) => {
-    const qty = parseInt(newQty) || 0;
-    const carryover = parseInt(item['차월이월']) || 0;
-    const prevMonth = parseInt(item['전월반영']) || 0;
-    const finalCount = qty - carryover + prevMonth;
-    const unitPrice = item['단가'] || 0;
+  // 수량 → 금액 재계산 공통 함수
+  const recalcAmount = (item, overrides = {}) => {
+    const merged = { ...item, ...overrides };
+    const companyQty = parseInt(merged['당월발생']) || 0;
+    const hospitalQty = parseInt(merged['병원수량']) || 0;
+    const carryover = parseInt(merged['차월이월']) || 0;
+    const prevMonth = parseInt(merged['전월반영']) || 0;
+
+    // 회사 vs 병원 비교 → 청구 기준 수량 결정
+    const { billingQty } = resolveQty(companyQty, hospitalQty);
+    const finalCount = billingQty - carryover + prevMonth;
+    const unitPrice = merged['단가'] || 0;
     const totalAmount = finalCount * unitPrice;
     const { supply, vat } = calculateVAT(totalAmount);
 
-    updateLedgerEntry(item._id, {
-      '병원수량': String(qty),
+    return {
+      ...overrides,
       '최종건수': finalCount,
       '공급가': supply,
       '부가세': vat,
       '청구금액': totalAmount,
       '미수금': totalAmount,
-    });
+    };
+  };
+
+  // 회사수량 변경
+  const handleCompanyQtyChange = (item, val) => {
+    const updates = recalcAmount(item, { '당월발생': String(parseInt(val) || 0) });
+    updateLedgerEntry(item._id, updates);
+  };
+
+  // 병원수량 변경
+  const handleQtyChange = (item, newQty) => {
+    const updates = recalcAmount(item, { '병원수량': String(parseInt(newQty) || 0) });
+    updateLedgerEntry(item._id, updates);
   };
 
   // 차월이월 변경
   const handleCarryoverChange = (item, val) => {
-    const carryover = parseInt(val) || 0;
-    const qty = parseInt(item['병원수량']) || 0;
-    const prevMonth = parseInt(item['전월반영']) || 0;
-    const finalCount = qty - carryover + prevMonth;
-    const unitPrice = item['단가'] || 0;
-    const totalAmount = finalCount * unitPrice;
-    const { supply, vat } = calculateVAT(totalAmount);
-
-    updateLedgerEntry(item._id, {
-      '차월이월': String(carryover),
-      '최종건수': finalCount,
-      '공급가': supply,
-      '부가세': vat,
-      '청구금액': totalAmount,
-      '미수금': totalAmount,
-    });
+    const updates = recalcAmount(item, { '차월이월': String(parseInt(val) || 0) });
+    updateLedgerEntry(item._id, updates);
   };
 
   // 전월반영 변경
   const handlePrevMonthChange = (item, val) => {
-    const prevMonth = parseInt(val) || 0;
-    const qty = parseInt(item['병원수량']) || 0;
-    const carryover = parseInt(item['차월이월']) || 0;
-    const finalCount = qty - carryover + prevMonth;
-    const unitPrice = item['단가'] || 0;
-    const totalAmount = finalCount * unitPrice;
-    const { supply, vat } = calculateVAT(totalAmount);
-
-    updateLedgerEntry(item._id, {
-      '전월반영': String(prevMonth),
-      '최종건수': finalCount,
-      '공급가': supply,
-      '부가세': vat,
-      '청구금액': totalAmount,
-      '미수금': totalAmount,
-    });
+    const updates = recalcAmount(item, { '전월반영': String(parseInt(val) || 0) });
+    updateLedgerEntry(item._id, updates);
   };
 
   // 수량확정 토글
@@ -178,6 +186,11 @@ const MonthlyBilling = () => {
               <p className="text-2xl font-bold text-gray-800">{fmt(summary.total)}원</p>
               <p className="text-xs text-gray-500">청구 합계</p>
             </div>
+            {summary.qtyWarnings > 0 && (
+              <div className="col-span-4 bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm text-orange-700">
+                수량 차이 20 초과: <span className="font-bold">{summary.qtyWarnings}건</span> — 회사수량과 병원수량 확인 필요
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -197,7 +210,7 @@ const MonthlyBilling = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  {['거래처명', '진료과', '제품', '병원수량', '차월이월', '전월반영', '최종건수', '단가', '청구금액', '수량확정', '계산서', '상태'].map(h => (
+                  {['거래처명', '진료과', '제품', '회사수량', '병원수량', '차이', '차월이월', '전월반영', '최종건수', '단가', '청구금액', '수량확정', '계산서', '상태'].map(h => (
                     <th key={h} className="table-header px-3 py-3">{h}</th>
                   ))}
                 </tr>
@@ -205,16 +218,32 @@ const MonthlyBilling = () => {
               <tbody className="divide-y divide-gray-200">
                 {monthItems.map((item) => {
                   const isLocked = item['채권상태'] === '청구확정' || item['채권상태'] === '완납';
+                  const companyQty = parseInt(item['당월발생']) || 0;
+                  const hospitalQty = parseInt(item['병원수량']) || 0;
+                  const qtyResult = resolveQty(companyQty, hospitalQty);
+                  const bothEntered = companyQty > 0 && hospitalQty > 0;
                   return (
                     <tr key={item._id} className={`hover:bg-gray-50 ${
                       item['채권상태'] === '청구확정' ? 'bg-blue-50' :
+                      bothEntered && qtyResult.status === 'warn' ? 'bg-orange-50' :
                       item['최종건수'] === 0 ? 'bg-yellow-50' : ''
                     }`}>
                       <td className="table-cell font-medium text-sm">{item['거래처명']}</td>
                       <td className="table-cell text-xs text-gray-500">{item['진료과']}</td>
                       <td className="table-cell text-xs">{item['제품명']}</td>
 
-                      {/* 병원수량 - 인라인 편집 */}
+                      {/* 회사수량 (당월발생) */}
+                      <td className="table-cell">
+                        <input type="number" min="0"
+                          value={item['당월발생'] || ''}
+                          onChange={e => handleCompanyQtyChange(item, e.target.value)}
+                          disabled={isLocked}
+                          className={`w-16 border rounded px-2 py-1 text-sm text-right ${
+                            isLocked ? 'bg-gray-100 text-gray-400' : 'border-gray-300'
+                          }`} />
+                      </td>
+
+                      {/* 병원수량 */}
                       <td className="table-cell">
                         <input type="number" min="0"
                           value={item['병원수량'] || ''}
@@ -223,6 +252,23 @@ const MonthlyBilling = () => {
                           className={`w-16 border rounded px-2 py-1 text-sm text-right ${
                             isLocked ? 'bg-gray-100 text-gray-400' : 'border-gray-300'
                           }`} />
+                      </td>
+
+                      {/* 차이 표시 */}
+                      <td className="table-cell text-center text-xs">
+                        {bothEntered ? (
+                          <span className={`px-1.5 py-0.5 rounded-full ${
+                            qtyResult.status === 'ok'
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-orange-100 text-orange-700 font-semibold'
+                          }`}>
+                            {qtyResult.diff === 0 ? '일치' :
+                             qtyResult.status === 'ok' ? `±${qtyResult.diff}` :
+                             `±${qtyResult.diff} ⚠`}
+                          </span>
+                        ) : (
+                          <span className="text-gray-300">-</span>
+                        )}
                       </td>
 
                       {/* 차월이월 */}
