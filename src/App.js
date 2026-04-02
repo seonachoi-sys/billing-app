@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { DataProvider, useData } from './context/DataContext';
 import Dashboard from './components/Dashboard';
+import MonthlyBilling from './components/MonthlyBilling';
 import Ledger from './components/Ledger';
 import InvoiceGenerator from './components/InvoiceGenerator';
 import HospitalManagement from './components/HospitalManagement';
@@ -9,7 +10,8 @@ import OverdueAlerts from './components/OverdueAlerts';
 
 const tabs = [
   { id: 'dashboard', label: '대시보드', icon: '📊' },
-  { id: 'ledger', label: '매출청구 관리장', icon: '📋' },
+  { id: 'billing', label: '월별 청구', icon: '📝' },
+  { id: 'ledger', label: '미수금 관리', icon: '📋' },
   { id: 'invoice', label: '거래명세서', icon: '📄' },
   { id: 'hospital', label: '거래처 관리', icon: '🏥' },
   { id: 'settings', label: '설정', icon: '⚙️' },
@@ -23,6 +25,7 @@ function AppContent() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard />;
+      case 'billing': return <MonthlyBilling />;
       case 'ledger': return <Ledger />;
       case 'invoice': return <InvoiceGenerator />;
       case 'hospital': return <HospitalManagement />;

@@ -88,6 +88,10 @@ function parseLedger() {
     item['부가세'] = vat;
     item['청구금액'] = rawTotal;
     item['미수금'] = toNumber(item['미수금']);
+    // 완납이 아닌데 미수금이 비어있으면 청구금액으로 자동 설정
+    if (item['채권상태'] !== '완납' && item['미수금'] === 0 && rawTotal > 0) {
+      item['미수금'] = rawTotal;
+    }
     item['정산주기'] = toNumber(item['정산주기']);
     item['채권연령'] = toNumber(item['채권연령']);
 

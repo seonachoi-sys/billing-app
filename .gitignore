@@ -4,3 +4,5 @@ build/
 .env.local
 .DS_Store
 node_modules
+CLAUDE.local.md
+.claude/settings.local.json

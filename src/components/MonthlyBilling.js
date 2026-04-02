@@ -1,0 +1,316 @@
+import React, { useState, useMemo } from 'react';
+import { useData } from '../context/DataContext';
+import { calculateVAT, calculateDueDate, fmt } from '../utils/calculations';
+
+const MonthlyBilling = () => {
+  const { ledger, hospitals, updateLedgerEntry, generateMonthlyEntries } = useData();
+
+  const [billingMonth, setBillingMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  // 해당 월 데이터만 필터
+  const monthItems = useMemo(() =>
+    ledger.filter(item => item['청구기준'] === billingMonth),
+    [ledger, billingMonth]
+  );
+
+  const hasData = monthItems.length > 0;
+
+  // 요약
+  const summary = useMemo(() => {
+    const total = monthItems.reduce((s, i) => s + (i['청구금액'] || 0), 0);
+    const confirmed = monthItems.filter(i => i['수량확정'] === 'TRUE').length;
+    const invoiced = monthItems.filter(i => i['계산서'] === 'TRUE').length;
+    return { total, confirmed, invoiced, count: monthItems.length };
+  }, [monthItems]);
+
+  // 월별 자동 생성
+  const handleGenerate = () => {
+    const count = generateMonthlyEntries(billingMonth);
+    if (count > 0) {
+      alert(`${billingMonth} 청구 데이터 ${count}건이 생성되었습니다.\n각 거래처의 병원수량을 입력해 주세요.`);
+    } else {
+      alert(`${billingMonth}에 이미 모든 거래처 데이터가 존재합니다.`);
+    }
+  };
+
+  // 병원수량 변경 → 자동 계산
+  const handleQtyChange = (item, newQty) => {
+    const qty = parseInt(newQty) || 0;
+    const carryover = parseInt(item['차월이월']) || 0;
+    const prevMonth = parseInt(item['전월반영']) || 0;
+    const finalCount = qty - carryover + prevMonth;
+    const unitPrice = item['단가'] || 0;
+    const totalAmount = finalCount * unitPrice;
+    const { supply, vat } = calculateVAT(totalAmount);
+
+    updateLedgerEntry(item._id, {
+      '병원수량': String(qty),
+      '최종건수': finalCount,
+      '공급가': supply,
+      '부가세': vat,
+      '청구금액': totalAmount,
+      '미수금': totalAmount,
+    });
+  };
+
+  // 차월이월 변경
+  const handleCarryoverChange = (item, val) => {
+    const carryover = parseInt(val) || 0;
+    const qty = parseInt(item['병원수량']) || 0;
+    const prevMonth = parseInt(item['전월반영']) || 0;
+    const finalCount = qty - carryover + prevMonth;
+    const unitPrice = item['단가'] || 0;
+    const totalAmount = finalCount * unitPrice;
+    const { supply, vat } = calculateVAT(totalAmount);
+
+    updateLedgerEntry(item._id, {
+      '차월이월': String(carryover),
+      '최종건수': finalCount,
+      '공급가': supply,
+      '부가세': vat,
+      '청구금액': totalAmount,
+      '미수금': totalAmount,
+    });
+  };
+
+  // 전월반영 변경
+  const handlePrevMonthChange = (item, val) => {
+    const prevMonth = parseInt(val) || 0;
+    const qty = parseInt(item['병원수량']) || 0;
+    const carryover = parseInt(item['차월이월']) || 0;
+    const finalCount = qty - carryover + prevMonth;
+    const unitPrice = item['단가'] || 0;
+    const totalAmount = finalCount * unitPrice;
+    const { supply, vat } = calculateVAT(totalAmount);
+
+    updateLedgerEntry(item._id, {
+      '전월반영': String(prevMonth),
+      '최종건수': finalCount,
+      '공급가': supply,
+      '부가세': vat,
+      '청구금액': totalAmount,
+      '미수금': totalAmount,
+    });
+  };
+
+  // 수량확정 토글
+  const handleConfirmQty = (item) => {
+    const next = item['수량확정'] === 'TRUE' ? 'FALSE' : 'TRUE';
+    updateLedgerEntry(item._id, { '수량확정': next });
+  };
+
+  // 계산서 발행 토글
+  const handleInvoiceToggle = (item) => {
+    const next = item['계산서'] === 'TRUE' ? 'FALSE' : 'TRUE';
+    updateLedgerEntry(item._id, { '계산서': next });
+  };
+
+  // 청구확정 일괄 처리
+  const handleBulkConfirm = () => {
+    const targets = monthItems.filter(i => i['수량확정'] === 'TRUE' && i['채권상태'] !== '청구확정' && i['최종건수'] > 0);
+    if (targets.length === 0) {
+      alert('수량확정된 항목이 없습니다.');
+      return;
+    }
+    if (!window.confirm(`수량확정된 ${targets.length}건을 청구확정 처리하시겠습니까?`)) return;
+    targets.forEach(item => {
+      updateLedgerEntry(item._id, { '채권상태': '청구확정' });
+    });
+    alert(`${targets.length}건 청구확정 완료`);
+  };
+
+  // 월 이동
+  const changeMonth = (delta) => {
+    const [y, m] = billingMonth.split('-').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    setBillingMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* 상단: 월 선택 + 요약 */}
+      <div className="bg-white rounded-lg shadow p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button onClick={() => changeMonth(-1)}
+              className="px-3 py-2 border rounded-md text-sm hover:bg-gray-50">&larr;</button>
+            <input type="month" value={billingMonth}
+              onChange={e => setBillingMonth(e.target.value)}
+              className="border border-gray-300 rounded-md px-4 py-2 text-lg font-bold" />
+            <button onClick={() => changeMonth(1)}
+              className="px-3 py-2 border rounded-md text-sm hover:bg-gray-50">&rarr;</button>
+          </div>
+          <div className="flex items-center gap-3">
+            {!hasData && (
+              <button onClick={handleGenerate}
+                className="bg-green-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-600">
+                이 달 청구 생성
+              </button>
+            )}
+            {hasData && (
+              <button onClick={handleBulkConfirm}
+                className="bg-blue-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-600">
+                수량확정 → 청구확정
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* 요약 카드 */}
+        {hasData && (
+          <div className="grid grid-cols-4 gap-4 mt-4">
+            <div className="bg-gray-50 rounded-lg p-3 text-center">
+              <p className="text-2xl font-bold text-gray-800">{summary.count}</p>
+              <p className="text-xs text-gray-500">총 거래처</p>
+            </div>
+            <div className="bg-blue-50 rounded-lg p-3 text-center">
+              <p className="text-2xl font-bold text-blue-600">{summary.confirmed}</p>
+              <p className="text-xs text-gray-500">수량확정</p>
+            </div>
+            <div className="bg-green-50 rounded-lg p-3 text-center">
+              <p className="text-2xl font-bold text-green-600">{summary.invoiced}</p>
+              <p className="text-xs text-gray-500">계산서 발행</p>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3 text-center">
+              <p className="text-2xl font-bold text-gray-800">{fmt(summary.total)}원</p>
+              <p className="text-xs text-gray-500">청구 합계</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 데이터 없을 때 */}
+      {!hasData && (
+        <div className="bg-white rounded-lg shadow p-12 text-center text-gray-400">
+          <p className="text-lg mb-2">{billingMonth} 청구 데이터가 없습니다</p>
+          <p className="text-sm">"이 달 청구 생성" 버튼을 눌러 시작하세요</p>
+        </div>
+      )}
+
+      {/* 청구 테이블 */}
+      {hasData && (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  {['거래처명', '진료과', '제품', '병원수량', '차월이월', '전월반영', '최종건수', '단가', '청구금액', '수량확정', '계산서', '상태'].map(h => (
+                    <th key={h} className="table-header px-3 py-3">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {monthItems.map((item) => {
+                  const isLocked = item['채권상태'] === '청구확정' || item['채권상태'] === '완납';
+                  return (
+                    <tr key={item._id} className={`hover:bg-gray-50 ${
+                      item['채권상태'] === '청구확정' ? 'bg-blue-50' :
+                      item['최종건수'] === 0 ? 'bg-yellow-50' : ''
+                    }`}>
+                      <td className="table-cell font-medium text-sm">{item['거래처명']}</td>
+                      <td className="table-cell text-xs text-gray-500">{item['진료과']}</td>
+                      <td className="table-cell text-xs">{item['제품명']}</td>
+
+                      {/* 병원수량 - 인라인 편집 */}
+                      <td className="table-cell">
+                        <input type="number" min="0"
+                          value={item['병원수량'] || ''}
+                          onChange={e => handleQtyChange(item, e.target.value)}
+                          disabled={isLocked}
+                          className={`w-16 border rounded px-2 py-1 text-sm text-right ${
+                            isLocked ? 'bg-gray-100 text-gray-400' : 'border-gray-300'
+                          }`} />
+                      </td>
+
+                      {/* 차월이월 */}
+                      <td className="table-cell">
+                        <input type="number" min="0"
+                          value={item['차월이월'] || ''}
+                          onChange={e => handleCarryoverChange(item, e.target.value)}
+                          disabled={isLocked}
+                          className={`w-14 border rounded px-2 py-1 text-sm text-right ${
+                            isLocked ? 'bg-gray-100 text-gray-400' : 'border-gray-300'
+                          }`} />
+                      </td>
+
+                      {/* 전월반영 */}
+                      <td className="table-cell">
+                        <input type="number" min="0"
+                          value={item['전월반영'] || ''}
+                          onChange={e => handlePrevMonthChange(item, e.target.value)}
+                          disabled={isLocked}
+                          className={`w-14 border rounded px-2 py-1 text-sm text-right ${
+                            isLocked ? 'bg-gray-100 text-gray-400' : 'border-gray-300'
+                          }`} />
+                      </td>
+
+                      {/* 최종건수 (자동) */}
+                      <td className="table-cell text-right text-sm font-semibold">
+                        {item['최종건수']}
+                      </td>
+
+                      {/* 단가 */}
+                      <td className="table-cell text-right text-xs text-gray-500">
+                        {fmt(item['단가'])}
+                      </td>
+
+                      {/* 청구금액 */}
+                      <td className={`table-cell text-right text-sm font-semibold ${
+                        item['청구금액'] > 0 ? 'text-gray-800' : 'text-gray-300'
+                      }`}>
+                        {fmt(item['청구금액'])}원
+                      </td>
+
+                      {/* 수량확정 체크 */}
+                      <td className="table-cell text-center">
+                        <button onClick={() => handleConfirmQty(item)}
+                          disabled={isLocked || item['최종건수'] === 0}
+                          className={`w-6 h-6 rounded border text-xs ${
+                            item['수량확정'] === 'TRUE'
+                              ? 'bg-blue-500 text-white border-blue-500'
+                              : 'bg-white border-gray-300 text-gray-300 hover:border-blue-400'
+                          } ${(isLocked || item['최종건수'] === 0) ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                          {item['수량확정'] === 'TRUE' ? '✓' : ''}
+                        </button>
+                      </td>
+
+                      {/* 계산서 발행 체크 */}
+                      <td className="table-cell text-center">
+                        <button onClick={() => handleInvoiceToggle(item)}
+                          disabled={item['수량확정'] !== 'TRUE'}
+                          className={`w-6 h-6 rounded border text-xs ${
+                            item['계산서'] === 'TRUE'
+                              ? 'bg-green-500 text-white border-green-500'
+                              : 'bg-white border-gray-300 text-gray-300 hover:border-green-400'
+                          } ${item['수량확정'] !== 'TRUE' ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                          {item['계산서'] === 'TRUE' ? '✓' : ''}
+                        </button>
+                      </td>
+
+                      {/* 상태 */}
+                      <td className="table-cell">
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          item['채권상태'] === '청구확정' ? 'bg-blue-100 text-blue-700' :
+                          item['채권상태'] === '완납' ? 'bg-green-100 text-green-700' :
+                          item['최종건수'] === 0 ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>
+                          {item['최종건수'] === 0 && item['채권상태'] !== '청구확정' ? '수량 입력 필요' : item['채권상태']}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default MonthlyBilling;

@@ -1,47 +1,73 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { fmt, calculateDday } from '../utils/calculations';
-import BillingEntryForm from './forms/BillingEntryForm';
 
-const statusBadge = (status) => {
-  const map = {
-    '완납': 'badge badge-green', '정상': 'badge badge-blue',
-    '미청구': 'badge badge-yellow', '청구확정': 'badge badge-blue',
-    '입금완료': 'badge badge-green', '연체': 'badge badge-red',
-  };
-  return map[status] || 'badge badge-gray';
+const DateInput = ({ value, onCommit }) => {
+  const [local, setLocal] = useState(value || '');
+  const prevValue = useRef(value || '');
+
+  if ((value || '') !== prevValue.current) {
+    prevValue.current = value || '';
+    setLocal(value || '');
+  }
+
+  return (
+    <input
+      type="date"
+      value={local}
+      onChange={e => setLocal(e.target.value)}
+      onBlur={() => {
+        if (local && local !== (value || '')) {
+          onCommit(local);
+        }
+      }}
+      className="border rounded px-2 py-1 text-xs w-32"
+    />
+  );
 };
 
 const Ledger = () => {
-  const { ledger, updateLedgerEntry, deleteLedgerEntry, generateMonthlyEntries } = useData();
+  const { ledger, updateLedgerEntry } = useData();
   const [nameFilter, setNameFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
   const [monthFilter, setMonthFilter] = useState('');
-  const [showForm, setShowForm] = useState(false);
-  const [showGenerate, setShowGenerate] = useState(false);
-  const [genMonth, setGenMonth] = useState(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  });
-  const [editEntry, setEditEntry] = useState(null);
+  const [showCompleted, setShowCompleted] = useState(false);
 
-  const statuses = [...new Set(ledger.map(i => i['채권상태']))].filter(Boolean);
   const months = [...new Set(ledger.map(i => i['청구기준']))].filter(Boolean).sort();
 
+  // 미수금이 있거나 아직 완납 아닌 건만 대상
   const filtered = ledger.filter(item =>
     item['거래처명'].includes(nameFilter) &&
-    (statusFilter === '' || item['채권상태'] === statusFilter) &&
     (monthFilter === '' || item['청구기준'] === monthFilter)
   );
 
-  const totalFiltered = filtered.reduce((s, i) => s + (i['청구금액'] || 0), 0);
-  const outstandingFiltered = filtered.reduce((s, i) => s + (i['미수금'] || 0), 0);
+  const activeItems = filtered
+    .filter(item => item['채권상태'] !== '완납')
+    .sort((a, b) => {
+      const ddayA = calculateDday(a['입금예정일']);
+      const ddayB = calculateDday(b['입금예정일']);
+      if (ddayA === null && ddayB === null) return 0;
+      if (ddayA === null) return 1;
+      if (ddayB === null) return -1;
+      return ddayB - ddayA;
+    });
+
+  const completedItems = filtered.filter(item => item['채권상태'] === '완납');
+
+  const outstandingTotal = activeItems.reduce((s, i) => s + (i['미수금'] || 0), 0);
+  const overdueItems = activeItems.filter(i => {
+    const d = calculateDday(i['입금예정일']);
+    return d !== null && d > 0;
+  });
+  const overdueTotal = overdueItems.reduce((s, i) => s + (i['미수금'] || 0), 0);
 
   const handleStatusChange = (item, newStatus) => {
     const updates = { '채권상태': newStatus };
     if (newStatus === '완납') {
       updates['미수금'] = 0;
       updates['실제입금일'] = new Date().toISOString().slice(0, 10);
+    } else if (item['채권상태'] === '완납') {
+      updates['미수금'] = item['청구금액'] || 0;
+      updates['실제입금일'] = '';
     }
     updateLedgerEntry(item._id, updates);
   };
@@ -54,20 +80,34 @@ const Ledger = () => {
     });
   };
 
-  const handleEdit = (item) => {
-    setEditEntry(item);
-    setShowForm(true);
-  };
-
-  const handleDelete = (item) => {
-    if (window.confirm(`${item['거래처명']} - ${item['청구기준']} 건을 삭제하시겠습니까?`)) {
-      deleteLedgerEntry(item._id);
-    }
-  };
-
   return (
     <div className="space-y-4">
-      {/* 필터 + 추가 버튼 */}
+      {/* 요약 카드 */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-white rounded-lg shadow p-4">
+          <p className="text-sm text-gray-500">총 미수금</p>
+          <p className={`text-2xl font-bold ${outstandingTotal > 0 ? 'text-red-600' : 'text-gray-800'}`}>
+            {fmt(outstandingTotal)}원
+          </p>
+          <p className="text-xs text-gray-400 mt-1">{activeItems.length}건 진행 중</p>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <p className="text-sm text-gray-500">연체 미수금</p>
+          <p className={`text-2xl font-bold ${overdueTotal > 0 ? 'text-red-600' : 'text-green-600'}`}>
+            {fmt(overdueTotal)}원
+          </p>
+          <p className="text-xs text-gray-400 mt-1">{overdueItems.length}건 연체</p>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <p className="text-sm text-gray-500">완납 처리</p>
+          <p className="text-2xl font-bold text-green-600">{completedItems.length}건</p>
+          <p className="text-xs text-gray-400 mt-1">
+            {fmt(completedItems.reduce((s, i) => s + (i['청구금액'] || 0), 0))}원
+          </p>
+        </div>
+      </div>
+
+      {/* 필터 */}
       <div className="bg-white rounded-lg shadow p-4 flex flex-wrap gap-3 items-end">
         <div>
           <label className="block text-xs text-gray-500 mb-1">청구기준</label>
@@ -83,47 +123,30 @@ const Ledger = () => {
             onChange={e => setNameFilter(e.target.value)}
             className="border border-gray-300 rounded-md px-3 py-2 text-sm" />
         </div>
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">채권상태</label>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-2 text-sm">
-            <option value="">전체</option>
-            {statuses.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-        <div className="ml-auto flex items-center gap-3">
-          <span className="text-sm text-gray-500">
-            {filtered.length}건 | 청구 {fmt(totalFiltered)}원 | 미수 <span className="text-red-600 font-semibold">{fmt(outstandingFiltered)}원</span>
-          </span>
-          <button onClick={() => setShowGenerate(true)}
-            className="bg-green-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-600">
-            월별 자동 생성
-          </button>
-          <button onClick={() => { setEditEntry(null); setShowForm(true); }}
-            className="bg-blue-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-600">
-            + 매출 입력
-          </button>
-        </div>
       </div>
 
-      {/* 테이블 */}
+      {/* 미수금 진행 테이블 */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="px-4 py-3 border-b bg-red-50">
+          <h3 className="text-sm font-semibold text-red-700">
+            미수금 진행 <span className="text-red-400 font-normal ml-1">{activeItems.length}건 · {fmt(outstandingTotal)}원</span>
+          </h3>
+        </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                {['청구기준', '발생기준', '거래처명', '제품', '건수', '청구금액', '미수금', '예정일', 'D-day', '상태', '입금일', ''].map(h => (
+                {['청구기준', '거래처명', '제품', '건수', '청구금액', '미수금', '예정일', 'D-day', '상태', '입금일'].map(h => (
                   <th key={h} className="table-header px-3 py-3">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {filtered.map((item) => {
+              {activeItems.map((item) => {
                 const dday = calculateDday(item['입금예정일']);
                 return (
-                  <tr key={item._id} className="hover:bg-gray-50">
+                  <tr key={item._id} className={`hover:bg-gray-50 ${dday > 0 ? 'bg-red-50' : ''}`}>
                     <td className="table-cell text-xs">{item['청구기준']}</td>
-                    <td className="table-cell text-xs">{item['발생기준']}</td>
                     <td className="table-cell font-medium text-sm">{item['거래처명']}</td>
                     <td className="table-cell text-xs">{item['제품명']}</td>
                     <td className="table-cell text-right text-xs">{item['최종건수']}</td>
@@ -133,7 +156,7 @@ const Ledger = () => {
                     </td>
                     <td className="table-cell text-xs">{item['입금예정일']}</td>
                     <td className="table-cell text-center">
-                      {dday !== null && item['채권상태'] !== '완납' && (
+                      {dday !== null && (
                         <span className={`badge ${dday > 0 ? 'badge-red' : dday > -7 ? 'badge-yellow' : 'badge-blue'}`}>
                           {dday > 0 ? `D+${dday}` : `D${dday}`}
                         </span>
@@ -142,9 +165,7 @@ const Ledger = () => {
                     <td className="table-cell">
                       <select value={item['채권상태']}
                         onChange={e => handleStatusChange(item, e.target.value)}
-                        className={`border rounded px-2 py-1 text-xs ${
-                          item['채권상태'] === '완납' ? 'bg-green-50 border-green-300' : 'border-gray-300'
-                        }`}>
+                        className="border rounded px-2 py-1 text-xs border-gray-300">
                         <option value="정상">정상</option>
                         <option value="완납">완납</option>
                         <option value="청구확정">청구확정</option>
@@ -153,78 +174,73 @@ const Ledger = () => {
                       </select>
                     </td>
                     <td className="table-cell">
-                      {item['채권상태'] !== '완납' ? (
-                        <input type="date" value={item['실제입금일'] || ''}
-                          onChange={e => handlePaymentDate(item, e.target.value)}
-                          className="border rounded px-2 py-1 text-xs w-32" />
-                      ) : (
-                        <span className="text-xs text-green-600">{item['실제입금일']}</span>
-                      )}
-                    </td>
-                    <td className="table-cell">
-                      <div className="flex gap-1">
-                        <button onClick={() => handleEdit(item)}
-                          className="text-xs text-blue-500 hover:text-blue-700">수정</button>
-                        <button onClick={() => handleDelete(item)}
-                          className="text-xs text-red-400 hover:text-red-600">삭제</button>
-                      </div>
+                      <DateInput
+                        value={item['실제입금일']}
+                        onCommit={date => handlePaymentDate(item, date)}
+                      />
                     </td>
                   </tr>
                 );
               })}
+              {activeItems.length === 0 && (
+                <tr><td colSpan={10} className="text-center text-gray-400 py-8 text-sm">미수금이 없습니다</td></tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {showForm && (
-        <BillingEntryForm
-          onClose={() => { setShowForm(false); setEditEntry(null); }}
-          editEntry={editEntry}
-        />
-      )}
-
-      {/* 월별 자동 생성 모달 */}
-      {showGenerate && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-            <div className="flex items-center justify-between px-6 py-4 border-b">
-              <h3 className="text-lg font-bold text-gray-800">월별 청구 자동 생성</h3>
-              <button onClick={() => setShowGenerate(false)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+      {/* 완납 이력 */}
+      {completedItems.length > 0 && (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <button
+            onClick={() => setShowCompleted(prev => !prev)}
+            className="w-full px-4 py-3 border-b bg-green-50 flex items-center justify-between text-left hover:bg-green-100 transition-colors"
+          >
+            <h3 className="text-sm font-semibold text-green-700">
+              완납 이력 <span className="font-normal ml-1">{completedItems.length}건</span>
+              <span className="font-normal text-green-500 ml-2">
+                {fmt(completedItems.reduce((s, i) => s + (i['청구금액'] || 0), 0))}원
+              </span>
+            </h3>
+            <span className="text-green-500 text-xs">{showCompleted ? '접기' : '펼치기'}</span>
+          </button>
+          {showCompleted && (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    {['청구기준', '거래처명', '제품', '건수', '청구금액', '입금일', '상태'].map(h => (
+                      <th key={h} className="table-header px-3 py-3">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {completedItems.map((item) => (
+                    <tr key={item._id} className="hover:bg-gray-50">
+                      <td className="table-cell text-xs">{item['청구기준']}</td>
+                      <td className="table-cell font-medium text-sm">{item['거래처명']}</td>
+                      <td className="table-cell text-xs">{item['제품명']}</td>
+                      <td className="table-cell text-right text-xs">{item['최종건수']}</td>
+                      <td className="table-cell text-right text-sm">{fmt(item['청구금액'])}원</td>
+                      <td className="table-cell text-xs text-green-600">{item['실제입금일']}</td>
+                      <td className="table-cell">
+                        <select value={item['채권상태']}
+                          onChange={e => handleStatusChange(item, e.target.value)}
+                          className="border rounded px-2 py-1 text-xs bg-green-50 border-green-300">
+                          <option value="정상">정상</option>
+                          <option value="완납">완납</option>
+                          <option value="청구확정">청구확정</option>
+                          <option value="미청구">미청구</option>
+                          <option value="연체">연체</option>
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <div className="p-6 space-y-4">
-              <p className="text-sm text-gray-600">
-                등록된 모든 거래처에 대해 선택한 월의 청구 틀을 자동으로 생성합니다.
-                이미 해당 월에 데이터가 있는 거래처는 건너뜁니다.
-              </p>
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">청구기준 월</label>
-                <input type="month" value={genMonth}
-                  onChange={e => setGenMonth(e.target.value)}
-                  className="w-full border rounded-md px-3 py-2 text-sm" />
-              </div>
-              <div className="bg-yellow-50 border border-yellow-200 rounded p-3 text-xs text-yellow-700">
-                생성 후 각 거래처의 병원수량을 입력하면 금액이 자동 계산됩니다.
-              </div>
-              <div className="flex justify-end gap-3">
-                <button onClick={() => setShowGenerate(false)}
-                  className="px-4 py-2 border rounded-md text-sm text-gray-600 hover:bg-gray-50">취소</button>
-                <button onClick={() => {
-                  const count = generateMonthlyEntries(genMonth);
-                  if (count > 0) {
-                    alert(`${genMonth} 청구 데이터 ${count}건이 생성되었습니다.`);
-                    setMonthFilter(genMonth);
-                  } else {
-                    alert(`${genMonth}에 이미 모든 거래처 데이터가 존재합니다.`);
-                  }
-                  setShowGenerate(false);
-                }}
-                  className="px-4 py-2 bg-green-500 text-white rounded-md text-sm font-medium hover:bg-green-600">
-                  자동 생성
-                </button>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       )}
     </div>
