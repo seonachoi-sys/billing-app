@@ -97,6 +97,29 @@ export async function batchWriteCollection(collectionName, items) {
   }
 }
 
+/** 컬렉션 전체 삭제 후 새 데이터로 교체 */
+export async function replaceCollection(collectionName, items) {
+  try {
+    // 1. 기존 문서 전부 삭제
+    const snap = await withTimeout(getDocs(collection(db, collectionName)));
+    const BATCH_SIZE = 450;
+    const existingDocs = snap.docs;
+    for (let i = 0; i < existingDocs.length; i += BATCH_SIZE) {
+      const batch = writeBatch(db);
+      existingDocs.slice(i, i + BATCH_SIZE).forEach(d => batch.delete(d.ref));
+      await withTimeout(batch.commit(), 15000);
+    }
+    // 2. 새 데이터 쓰기
+    if (items.length > 0) {
+      await batchWriteCollection(collectionName, items);
+    }
+    return true;
+  } catch (err) {
+    console.error(`Firestore 교체 실패 (${collectionName}):`, err);
+    return false;
+  }
+}
+
 /** 단일 문서 저장 (템플릿 등 단건 데이터용) */
 export async function saveSingleDoc(collectionName, docId, data) {
   try {

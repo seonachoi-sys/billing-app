@@ -7,6 +7,7 @@ import { DEFAULT_STEPS, ICON_OPTIONS } from './BillingGuide';
 
 const HospitalManagement = () => {
   const { hospitals, ledger, master, getHospitalSummary, addHospital, deleteHospital, updateContract, updateHospital } = useData();
+  // selectedHospital은 하위 호환용 (일부 useEffect에서 참조)
   const [selectedHospital, setSelectedHospital] = useState(null);
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -22,23 +23,54 @@ const HospitalManagement = () => {
     setEditingManual(false);
     setEditingSteps(false);
     setEditingStepIdx(null);
-  }, [selectedHospital]);
+  }, [selectedName]);
 
   const filteredHospitals = hospitals.filter(h =>
     h['거래처명'] && h['거래처명'].includes(search)
   );
 
-  const getDetail = (hospital) => {
-    const name = hospital['거래처명'];
-    const items = ledger.filter(l => l['거래처명'] === name);
-    const contract = master.find(m => m['거래처'] === name);
-    const summary = getHospitalSummary(name);
-    return { hospital, items, contract, ...summary };
+  // 거래처명 기준 그룹화 (좌측 목록용)
+  const groupedHospitals = useMemo(() => {
+    const map = new Map();
+    filteredHospitals.forEach(h => {
+      const name = h['거래처명'];
+      if (!map.has(name)) {
+        map.set(name, { name, records: [], hospital: h });
+      }
+      map.get(name).records.push(h);
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  }, [filteredHospitals]);
+
+  const getDetail = (hospitalName) => {
+    const records = hospitals.filter(h => h['거래처명'] === hospitalName);
+    const primary = records[0];
+    const items = ledger.filter(l => l['거래처명'] === hospitalName);
+    const contract = master.find(m => m['거래처'] === hospitalName);
+    const summary = getHospitalSummary(hospitalName);
+
+    // 제품별 미수금 분류
+    const productSummary = {};
+    records.forEach(r => {
+      const key = `${r['진료과']}·${r['제품명']}`;
+      const productItems = items.filter(i => i['제품명'] === r['제품명'] && (i['진료과'] === r['진료과'] || !i['진료과']));
+      productSummary[key] = {
+        record: r,
+        dept: r['진료과'],
+        product: r['제품명'],
+        outstanding: productItems.reduce((s, i) => s + (i['미수금'] || 0), 0),
+        totalSales: productItems.reduce((s, i) => s + (i['청구금액'] || 0), 0),
+        count: productItems.length,
+      };
+    });
+
+    return { hospital: primary, records, items, contract, productSummary, ...summary };
   };
 
-  // hospitals 배열에서 최신 데이터를 가져옴 (selectedHospital은 클릭 시점 스냅샷)
-  const currentHospital = selectedHospital ? hospitals.find(h => h._id === selectedHospital._id) : null;
-  const detail = currentHospital ? getDetail(currentHospital) : null;
+  // 선택된 병원 (이름 기준)
+  const [selectedName, setSelectedName] = useState(null);
+  const currentHospital = selectedName ? hospitals.find(h => h['거래처명'] === selectedName) : null;
+  const detail = selectedName ? getDetail(selectedName) : null;
 
   const handleEdit = (hospital) => {
     setEditHospital(hospital);
@@ -48,7 +80,10 @@ const HospitalManagement = () => {
   const handleDelete = (hospital) => {
     if (window.confirm(`${hospital['거래처명']}을(를) 삭제하시겠습니까?`)) {
       deleteHospital(hospital._id);
-      if (selectedHospital?._id === hospital._id) setSelectedHospital(null);
+      if (selectedName === hospital['거래처명']) {
+        const remaining = hospitals.filter(h => h['거래처명'] === hospital['거래처명'] && h._id !== hospital._id);
+        if (remaining.length === 0) setSelectedName(null);
+      }
     }
   };
 
@@ -99,27 +134,33 @@ const HospitalManagement = () => {
             </button>
           </div>
           <ul className="divide-y divide-gray-100 max-h-[520px] overflow-y-auto">
-            {filteredHospitals.map((h) => {
-              const summary = getHospitalSummary(h['거래처명']);
+            {groupedHospitals.map((group) => {
+              const summary = getHospitalSummary(group.name);
+              const h = group.hospital;
+              const products = group.records.map(r => `${r['진료과']}·${r['제품명']}`);
               return (
-                <li key={h._id}
-                  onClick={() => setSelectedHospital(h)}
+                <li key={group.name}
+                  onClick={() => setSelectedName(group.name)}
                   className={`px-4 py-3 cursor-pointer transition-colors ${
-                    selectedHospital?._id === h._id ? 'bg-blue-50 border-l-4 border-blue-500' : 'hover:bg-gray-50'
+                    selectedName === group.name ? 'bg-blue-50 border-l-4 border-blue-500' : 'hover:bg-gray-50'
                   }`}>
-                  <div className="text-sm font-medium text-gray-800">{h['거래처명']}</div>
-                  <div className="text-xs text-gray-400 mt-0.5 flex justify-between">
-                    <span>
-                      <span className={`inline-block px-1 py-0.5 rounded text-xs mr-1 ${
-                        h['병원구분'] === '상급종합' || h['병원구분'] === '상급' ? 'bg-purple-100 text-purple-600' :
-                        h['병원구분'] === '종합' ? 'bg-blue-100 text-blue-600' :
-                        h['병원구분'] === '병원' ? 'bg-green-100 text-green-600' :
-                        'bg-gray-100 text-gray-500'
-                      }`}>{h['병원구분']}</span>
-                      {h['진료과']} · {h['제품명']}
-                    </span>
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium text-gray-800">{group.name}</div>
+                    <span className={`inline-block px-1.5 py-0.5 rounded text-xs ${
+                      h['병원구분'] === '상급종합' || h['병원구분'] === '상급' ? 'bg-purple-100 text-purple-600' :
+                      h['병원구분'] === '종합' ? 'bg-blue-100 text-blue-600' :
+                      h['병원구분'] === '병원' ? 'bg-green-100 text-green-600' :
+                      'bg-gray-100 text-gray-500'
+                    }`}>{h['병원구분']}</span>
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1 flex justify-between items-center">
+                    <div className="flex flex-wrap gap-1">
+                      {products.map(p => (
+                        <span key={p} className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">{p}</span>
+                      ))}
+                    </div>
                     {summary.outstanding > 0 && (
-                      <span className="text-red-500">미수 {fmt(summary.outstanding)}</span>
+                      <span className="text-red-500 ml-2 whitespace-nowrap">미수 {fmt(summary.outstanding)}</span>
                     )}
                   </div>
                 </li>
@@ -149,20 +190,41 @@ const HospitalManagement = () => {
                 </div>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-                <div><span className="text-gray-500">업체코드:</span> <span className="font-medium">{detail.hospital['업체코드']}</span></div>
                 <div><span className="text-gray-500">병원구분:</span> <span className={`font-medium px-1.5 py-0.5 rounded text-xs ${
                   detail.hospital['병원구분'] === '상급종합' ? 'bg-purple-100 text-purple-700' :
                   detail.hospital['병원구분'] === '종합' ? 'bg-blue-100 text-blue-700' :
                   detail.hospital['병원구분'] === '병원' ? 'bg-green-100 text-green-700' :
                   'bg-gray-100 text-gray-700'
                 }`}>{detail.hospital['병원구분']}</span></div>
-                <div><span className="text-gray-500">진료과:</span> <span className="font-medium">{detail.hospital['진료과']}</span></div>
-                <div><span className="text-gray-500">담당의사:</span> <span className="font-medium">{detail.hospital['담당의사']}</span></div>
-                <div><span className="text-gray-500">제품:</span> <span className="font-medium">{detail.hospital['제품명']}</span></div>
                 <div><span className="text-gray-500">청구형태:</span> <span className="font-medium">{detail.hospital['청구형태']}</span></div>
-                <div><span className="text-gray-500">납품가:</span> <span className="font-medium">{fmt(detail.hospital['납품가'])}원</span></div>
                 <div><span className="text-gray-500">정산주기:</span> <span className="font-medium">{detail.hospital['정산주기']}</span></div>
+                <div><span className="text-gray-500">담당의사:</span> <span className="font-medium">{detail.hospital['담당의사']}</span></div>
                 <div><span className="text-gray-500">영업담당자:</span> <span className="font-medium">{detail.hospital['영업담당자'] || detail.hospital['담당사번'] || '-'}</span></div>
+              </div>
+
+              {/* 제품별 현황 */}
+              <div className="mt-4 pt-3 border-t">
+                <h4 className="text-xs font-semibold text-gray-500 mb-2">진료과 · 제품별 현황</h4>
+                <div className="grid gap-2">
+                  {Object.entries(detail.productSummary).map(([key, ps]) => (
+                    <div key={key} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">{ps.dept}</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                          ps.product === 'CAS' ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'
+                        }`}>{ps.product}</span>
+                        <span className="text-xs text-gray-400">코드: {ps.record['업체코드']}</span>
+                        <span className="text-xs text-gray-400">납품가 {fmt(ps.record['납품가'])}원</span>
+                      </div>
+                      <div className="flex items-center gap-4 text-xs">
+                        <span className="text-gray-500">청구 {fmt(ps.totalSales)}원</span>
+                        <span className={ps.outstanding > 0 ? 'text-red-600 font-semibold' : 'text-green-600'}>
+                          미수 {fmt(ps.outstanding)}원
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* 병원 담당자 정보 */}

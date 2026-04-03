@@ -4,8 +4,8 @@ import seedData from '../data';
 import { generateId, isOverdue, calculateDueDate } from '../utils/calculations';
 import {
   COLLECTIONS, fetchCollection, upsertDoc, updateDocument,
-  deleteDocument, batchWriteCollection, subscribeCollection,
-  migrateToFirestore,
+  deleteDocument, batchWriteCollection, replaceCollection,
+  subscribeCollection, migrateToFirestore,
 } from '../services/firestoreService';
 
 const DataContext = createContext();
@@ -59,59 +59,71 @@ export function DataProvider({ children }) {
 
         if (!mounted) return;
 
-        // Firestore ↔ localStorage 양방향 동기화
-        // Firestore가 비어 있으면 localStorage 데이터를 업로드
-        const syncCollectionUp = async (colName, fbData, localKey) => {
-          const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
-          if (fbData && fbData.length > 0) {
-            // Firestore에 있지만 localStorage에 없는 항목 보충
-            const remoteIds = new Set(fbData.map(d => d._id));
-            const missing = localData.filter(d => d._id && !remoteIds.has(d._id));
-            if (missing.length > 0) {
-              await batchWriteCollection(colName, missing).catch(console.error);
-              return [...fbData, ...missing];
-            }
-            return fbData;
-          } else if (localData.length > 0) {
-            // Firestore 비어있음 → localStorage 데이터 전체 업로드
-            await batchWriteCollection(colName, localData).catch(console.error);
-            return localData;
-          }
-          return fbData || [];
+        // Firestore ↔ localStorage 동기화 (중복 제거 포함)
+        const dedup = (items) => {
+          const seen = new Map();
+          items.forEach(item => {
+            if (item._id && !seen.has(item._id)) seen.set(item._id, item);
+          });
+          return Array.from(seen.values());
         };
 
-        const syncedLedger = await syncCollectionUp(COLLECTIONS.LEDGER, fbLedger, 'billing_ledger');
-        const syncedHospitals = await syncCollectionUp(COLLECTIONS.HOSPITALS, fbHospitals, 'billing_hospitals');
-        const syncedMaster = await syncCollectionUp(COLLECTIONS.MASTER, fbMaster, 'billing_master');
+        // ledger 전용: 비즈니스 키 기반 중복 제거 (거래처+제품+청구기준)
+        const dedupLedger = (items) => {
+          const seen = new Map();
+          items.forEach(item => {
+            const bizKey = `${item['거래처명']}||${item['제품명']}||${item['청구기준']}`;
+            const existing = seen.get(bizKey);
+            if (!existing) {
+              seen.set(bizKey, item);
+            } else {
+              // 더 최근에 수정된 항목 유지 (청구금액이 있는 쪽 우선)
+              if ((item['청구금액'] || 0) > (existing['청구금액'] || 0)) {
+                seen.set(bizKey, item);
+              }
+            }
+          });
+          return Array.from(seen.values());
+        };
+
+        const syncCollection = async (colName, fbData, localKey, isLedger = false) => {
+          const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
+          if (fbData && fbData.length > 0) {
+            // Firestore 데이터를 기본으로 사용 (중복 제거)
+            const result = isLedger ? dedupLedger(fbData) : dedup(fbData);
+            // 중복이 있었으면 Firestore 정리
+            if (result.length < fbData.length) {
+              console.warn(`${colName}: ${fbData.length - result.length}건 중복 제거, Firestore 정리`);
+              await replaceCollection(colName, result).catch(console.error);
+            }
+            return result;
+          } else if (localData.length > 0) {
+            // Firestore 비어있음 → localStorage 업로드
+            const cleaned = isLedger ? dedupLedger(localData) : dedup(localData);
+            await batchWriteCollection(colName, cleaned).catch(console.error);
+            return cleaned;
+          }
+          return [];
+        };
+
+        const syncedLedger = await syncCollection(COLLECTIONS.LEDGER, fbLedger, 'billing_ledger', true);
+        const syncedHospitals = await syncCollection(COLLECTIONS.HOSPITALS, fbHospitals, 'billing_hospitals');
+        const syncedMaster = await syncCollection(COLLECTIONS.MASTER, fbMaster, 'billing_master');
 
         if (syncedLedger.length > 0) setLedger(syncedLedger);
         if (syncedHospitals.length > 0) setHospitals(syncedHospitals);
         if (syncedMaster.length > 0) setMaster(syncedMaster);
 
-        // 4. 실시간 구독 시작 (다른 탭/사용자 변경 감지)
-        // 안전장치: Firestore 데이터가 로컬보다 적으면 병합 (데이터 손실 방지)
-        const safeMerge = (setter, colName) => (data) => {
-          if (data.length === 0) return;
-          setter(prev => {
-            if (data.length >= prev.length) return data;
-            // Firestore가 로컬보다 적음 → 병합 후 누락분 업로드
-            const remoteMap = new Map(data.map(d => [d._id, d]));
-            const localIds = new Set(prev.map(p => p._id));
-            const remoteOnly = data.filter(d => !localIds.has(d._id));
-            const merged = prev.map(p => remoteMap.has(p._id) ? remoteMap.get(p._id) : p);
-            const result = [...merged, ...remoteOnly];
-            // 누락된 항목 Firestore에 업로드
-            const missing = result.filter(item => !remoteMap.has(item._id));
-            if (missing.length > 0) {
-              batchWriteCollection(colName, missing).catch(console.error);
-            }
-            return result;
-          });
-        };
-
-        const unsub1 = subscribeCollection(COLLECTIONS.LEDGER, safeMerge(setLedger, COLLECTIONS.LEDGER));
-        const unsub2 = subscribeCollection(COLLECTIONS.HOSPITALS, safeMerge(setHospitals, COLLECTIONS.HOSPITALS));
-        const unsub3 = subscribeCollection(COLLECTIONS.MASTER, safeMerge(setMaster, COLLECTIONS.MASTER));
+        // 4. 실시간 구독 (Firestore = source of truth, _id 기반 중복 제거)
+        const unsub1 = subscribeCollection(COLLECTIONS.LEDGER, (data) => {
+          if (data.length > 0) setLedger(dedupLedger(data));
+        });
+        const unsub2 = subscribeCollection(COLLECTIONS.HOSPITALS, (data) => {
+          if (data.length > 0) setHospitals(dedup(data));
+        });
+        const unsub3 = subscribeCollection(COLLECTIONS.MASTER, (data) => {
+          if (data.length > 0) setMaster(dedup(data));
+        });
 
         unsubscribes.current = [unsub1, unsub2, unsub3];
         if (mounted) setFirebaseReady(true);
@@ -304,15 +316,15 @@ export function DataProvider({ children }) {
       const parsed = JSON.parse(json);
       if (parsed.ledger) {
         setLedger(parsed.ledger);
-        batchWriteCollection(COLLECTIONS.LEDGER, parsed.ledger).catch(console.error);
+        replaceCollection(COLLECTIONS.LEDGER, parsed.ledger).catch(console.error);
       }
       if (parsed.hospitals) {
         setHospitals(parsed.hospitals);
-        batchWriteCollection(COLLECTIONS.HOSPITALS, parsed.hospitals).catch(console.error);
+        replaceCollection(COLLECTIONS.HOSPITALS, parsed.hospitals).catch(console.error);
       }
       if (parsed.master) {
         setMaster(parsed.master);
-        batchWriteCollection(COLLECTIONS.MASTER, parsed.master).catch(console.error);
+        replaceCollection(COLLECTIONS.MASTER, parsed.master).catch(console.error);
       }
       return true;
     } catch {
@@ -325,11 +337,10 @@ export function DataProvider({ children }) {
     setHospitals(SEED.hospitals);
     setMaster(SEED.master);
     setNotifiedIds([]);
-    // Firestore도 시드 데이터로 덮어쓰기
-    batchWriteCollection(COLLECTIONS.LEDGER, SEED.ledger).catch(console.error);
-    batchWriteCollection(COLLECTIONS.HOSPITALS, SEED.hospitals).catch(console.error);
-    batchWriteCollection(COLLECTIONS.MASTER, SEED.master).catch(console.error);
-    // 마이그레이션 플래그 리셋
+    // Firestore: 기존 문서 전부 삭제 후 시드 데이터로 교체
+    replaceCollection(COLLECTIONS.LEDGER, SEED.ledger).catch(console.error);
+    replaceCollection(COLLECTIONS.HOSPITALS, SEED.hospitals).catch(console.error);
+    replaceCollection(COLLECTIONS.MASTER, SEED.master).catch(console.error);
     localStorage.removeItem('billing_firebase_migrated');
   }, [setLedger, setHospitals, setMaster, setNotifiedIds]);
 
