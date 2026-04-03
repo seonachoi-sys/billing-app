@@ -12,7 +12,7 @@ const HospitalForm = ({ onClose, editHospital = null }) => {
     '업체코드': '', '병원구분': '의원', '거래처명': '', '진료과': '내과',
     '담당의사': '', '제품명': 'CAS', '납품가': '', '청구형태': '직납',
     '정산주기': '60일', '영업담당자': '', '병원담당자명': '', '병원담당자전화': '',
-    '병원담당자이메일': '', '업체': '', '청구매뉴얼': '', '비고': '',
+    '병원담당자이메일': '', '이메일유형': '회신 요청', '업체': '', '청구매뉴얼': '', '비고': '',
     // 계약 정보
     '계약일': '', '갱신': '',
   });
@@ -31,6 +31,7 @@ const HospitalForm = ({ onClose, editHospital = null }) => {
         '병원담당자명': editHospital['병원담당자명'] || editHospital['병원'] || '',
         '병원담당자전화': editHospital['병원담당자전화'] || '',
         '병원담당자이메일': editHospital['병원담당자이메일'] || '',
+        '이메일유형': editHospital['이메일유형'] || '회신 요청',
       }));
     } else {
       setForm(prev => ({ ...prev, '업체코드': generateClientCode(hospitals) }));
@@ -66,6 +67,7 @@ const HospitalForm = ({ onClose, editHospital = null }) => {
       '병원담당자명': form['병원담당자명'],
       '병원담당자전화': form['병원담당자전화'],
       '병원담당자이메일': form['병원담당자이메일'],
+      '이메일유형': form['이메일유형'],
       '업체': form['업체'],
       '청구매뉴얼': form['청구매뉴얼'],
       '비고': form['비고'],
@@ -204,7 +206,7 @@ const HospitalForm = ({ onClose, editHospital = null }) => {
           {/* 병원 담당자 정보 */}
           <div className="border-t pt-4 mt-2">
             <h4 className="text-sm font-semibold text-gray-700 mb-3">병원 담당자 정보</h4>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-gray-600 mb-1">담당자명</label>
                 <input type="text" value={form['병원담당자명']} onChange={set('병원담당자명')}
@@ -222,6 +224,15 @@ const HospitalForm = ({ onClose, editHospital = null }) => {
                 <input type="email" value={form['병원담당자이메일']} onChange={set('병원담당자이메일')}
                   placeholder="email@hospital.kr"
                   className="w-full border rounded-md px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">청구 유형</label>
+                <select value={form['이메일유형']} onChange={set('이메일유형')}
+                  className="w-full border rounded-md px-3 py-2 text-sm">
+                  <option value="회신 요청">회신 요청</option>
+                  <option value="건수 안내">건수 안내</option>
+                </select>
+                <p className="text-xs text-gray-400 mt-0.5">메일 발송 시 사용할 템플릿 유형</p>
               </div>
             </div>
           </div>
