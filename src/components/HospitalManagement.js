@@ -35,7 +35,9 @@ const HospitalManagement = () => {
     return { hospital, items, contract, ...summary };
   };
 
-  const detail = selectedHospital ? getDetail(selectedHospital) : null;
+  // hospitals 배열에서 최신 데이터를 가져옴 (selectedHospital은 클릭 시점 스냅샷)
+  const currentHospital = selectedHospital ? hospitals.find(h => h._id === selectedHospital._id) : null;
+  const detail = currentHospital ? getDetail(currentHospital) : null;
 
   const handleEdit = (hospital) => {
     setEditHospital(hospital);
@@ -274,7 +276,7 @@ const HospitalManagement = () => {
                 {editingSteps ? (
                   <div className="flex gap-2">
                     <button onClick={() => {
-                      updateHospital(detail.hospital._id, { '청구단계목록': stepsList.length > 0 ? stepsList : undefined });
+                      updateHospital(detail.hospital._id, { '청구단계목록': stepsList });
                       setEditingSteps(false);
                       setEditingStepIdx(null);
                     }} className="text-xs text-blue-500 hover:text-blue-700 px-2 py-1 border rounded">저장</button>

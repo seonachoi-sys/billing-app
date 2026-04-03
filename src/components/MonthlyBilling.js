@@ -196,12 +196,10 @@ const MonthlyBilling = () => {
               className="px-3 py-2 border rounded-md text-sm hover:bg-gray-50">&rarr;</button>
           </div>
           <div className="flex items-center gap-2">
-            {!hasData && (
-              <button onClick={handleGenerate}
-                className="bg-green-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-600">
-                이 달 청구 생성
-              </button>
-            )}
+            <button onClick={handleGenerate}
+              className="bg-green-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-600">
+              {hasData ? '신규 거래처 추가' : '이 달 청구 생성'}
+            </button>
             {hasData && (
               <>
                 <button onClick={() => { setMoveTarget(''); setShowMoveModal(true); }}
