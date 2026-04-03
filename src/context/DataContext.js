@@ -110,7 +110,9 @@ export function DataProvider({ children }) {
         '채권연령': 0,
         '잠금': 'FALSE',
         '비고': '',
-        '청구단계': { step1: false, step2: false, step3: false, step4: false },
+        '청구단계': (h['청구단계목록'] && h['청구단계목록'].length > 0)
+          ? h['청구단계목록'].reduce((acc, s) => ({ ...acc, [s.key]: false }), {})
+          : { step1: false, step2: false, step3: false, step4: false },
       });
     });
 

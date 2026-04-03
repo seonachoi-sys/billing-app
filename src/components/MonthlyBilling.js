@@ -276,8 +276,13 @@ const MonthlyBilling = () => {
                   const hospitalQty = parseInt(item['병원수량']) || 0;
                   const qtyResult = resolveQty(companyQty, hospitalQty);
                   const bothEntered = companyQty > 0 && hospitalQty > 0;
-                  const steps = item['청구단계'] || { step1: false, step2: false, step3: false, step4: false };
-                  const stepValues = [steps.step1, steps.step2, steps.step3, steps.step4];
+                  const hospital = hospitals.find(h => h['거래처명'] === item['거래처명']);
+                  const customSteps = hospital?.['청구단계목록'];
+                  const stepDefs = (customSteps && customSteps.length > 0) ? customSteps : [
+                    { key: 'step1' }, { key: 'step2' }, { key: 'step3' }, { key: 'step4' }
+                  ];
+                  const checkedState = item['청구단계'] || {};
+                  const stepValues = stepDefs.map(s => !!checkedState[s.key]);
                   const isExpanded = expandedRows.has(item._id);
                   return (
                     <React.Fragment key={item._id}>

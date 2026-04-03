@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
-import { fmt } from '../utils/calculations';
+import { fmt, generateId } from '../utils/calculations';
 import HospitalForm from './forms/HospitalForm';
+import { DEFAULT_STEPS, ICON_OPTIONS } from './BillingGuide';
 
 const HospitalManagement = () => {
   const { hospitals, ledger, master, getHospitalSummary, deleteHospital, updateContract, updateHospital } = useData();
@@ -12,9 +13,14 @@ const HospitalManagement = () => {
   const [editHospital, setEditHospital] = useState(null);
   const [editingManual, setEditingManual] = useState(false);
   const [manualText, setManualText] = useState('');
+  const [editingSteps, setEditingSteps] = useState(false);
+  const [stepsList, setStepsList] = useState([]);
+  const [editingStepIdx, setEditingStepIdx] = useState(null);
 
   useEffect(() => {
     setEditingManual(false);
+    setEditingSteps(false);
+    setEditingStepIdx(null);
   }, [selectedHospital]);
 
   const filteredHospitals = hospitals.filter(h =>
@@ -256,6 +262,132 @@ const HospitalManagement = () => {
                     <p className="text-gray-700 leading-relaxed">{detail.hospital['청구매뉴얼']}</p>
                   ) : (
                     <p className="text-gray-400 italic">등록된 청구 매뉴얼이 없습니다. 수정 버튼을 눌러 작성해주세요.</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 청구 단계 관리 */}
+            <div className="bg-white rounded-lg shadow p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-gray-700">📌 청구 단계 설정</h4>
+                {editingSteps ? (
+                  <div className="flex gap-2">
+                    <button onClick={() => {
+                      updateHospital(detail.hospital._id, { '청구단계목록': stepsList.length > 0 ? stepsList : undefined });
+                      setEditingSteps(false);
+                      setEditingStepIdx(null);
+                    }} className="text-xs text-blue-500 hover:text-blue-700 px-2 py-1 border rounded">저장</button>
+                    <button onClick={() => { setEditingSteps(false); setEditingStepIdx(null); }}
+                      className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 border rounded">취소</button>
+                  </div>
+                ) : (
+                  <button onClick={() => {
+                    const current = detail.hospital['청구단계목록'];
+                    setStepsList((current && current.length > 0) ? [...current] : DEFAULT_STEPS.map(s => ({ ...s })));
+                    setEditingSteps(true);
+                  }} className="text-xs text-blue-500 hover:text-blue-700 px-2 py-1 border rounded">수정</button>
+                )}
+              </div>
+
+              {editingSteps ? (
+                <div className="space-y-2">
+                  {stepsList.map((step, idx) => (
+                    <div key={step.key} className="flex items-center gap-2 bg-gray-50 rounded-lg p-2">
+                      <span className="text-gray-400 text-xs w-5 text-center">{idx + 1}</span>
+                      {editingStepIdx === idx ? (
+                        <>
+                          <div className="relative">
+                            <select
+                              value={step.icon}
+                              onChange={e => {
+                                const updated = [...stepsList];
+                                updated[idx] = { ...updated[idx], icon: e.target.value };
+                                setStepsList(updated);
+                              }}
+                              className="border rounded px-1 py-1 text-lg w-12 text-center appearance-none"
+                            >
+                              {ICON_OPTIONS.map(ic => <option key={ic} value={ic}>{ic}</option>)}
+                            </select>
+                          </div>
+                          <input
+                            type="text"
+                            value={step.label}
+                            onChange={e => {
+                              const updated = [...stepsList];
+                              updated[idx] = { ...updated[idx], label: e.target.value };
+                              setStepsList(updated);
+                            }}
+                            className="flex-1 border rounded px-2 py-1 text-sm"
+                            placeholder="단계 이름"
+                            autoFocus
+                          />
+                          <button onClick={() => setEditingStepIdx(null)}
+                            className="text-xs text-blue-500 hover:text-blue-700 px-2 py-1">확인</button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-lg">{step.icon}</span>
+                          <span className="flex-1 text-sm text-gray-700">{step.label}</span>
+                          <button onClick={() => setEditingStepIdx(idx)}
+                            className="text-xs text-gray-400 hover:text-blue-500 px-1">수정</button>
+                          {idx > 0 && (
+                            <button onClick={() => {
+                              const updated = [...stepsList];
+                              [updated[idx - 1], updated[idx]] = [updated[idx], updated[idx - 1]];
+                              setStepsList(updated);
+                            }} className="text-xs text-gray-400 hover:text-gray-600">↑</button>
+                          )}
+                          {idx < stepsList.length - 1 && (
+                            <button onClick={() => {
+                              const updated = [...stepsList];
+                              [updated[idx], updated[idx + 1]] = [updated[idx + 1], updated[idx]];
+                              setStepsList(updated);
+                            }} className="text-xs text-gray-400 hover:text-gray-600">↓</button>
+                          )}
+                          <button onClick={() => {
+                            if (window.confirm(`"${step.label}" 단계를 삭제하시겠습니까?`)) {
+                              setStepsList(stepsList.filter((_, i) => i !== idx));
+                              if (editingStepIdx === idx) setEditingStepIdx(null);
+                            }
+                          }} className="text-xs text-red-400 hover:text-red-600 px-1">삭제</button>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                  <button onClick={() => {
+                    const newKey = 'step_' + generateId().slice(0, 6);
+                    setStepsList([...stepsList, { key: newKey, label: '새 단계', icon: '📋' }]);
+                    setEditingStepIdx(stepsList.length);
+                  }} className="w-full border-2 border-dashed border-gray-300 rounded-lg py-2 text-sm text-gray-400 hover:text-blue-500 hover:border-blue-300 transition-colors">
+                    + 단계 추가
+                  </button>
+                  {stepsList.length > 0 && (
+                    <button onClick={() => {
+                      if (window.confirm('모든 커스텀 단계를 삭제하고 기본 4단계로 복원하시겠습니까?')) {
+                        setStepsList(DEFAULT_STEPS.map(s => ({ ...s })));
+                      }
+                    }} className="text-xs text-gray-400 hover:text-gray-600">
+                      기본 단계로 복원
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {(() => {
+                    const currentSteps = (detail.hospital['청구단계목록'] && detail.hospital['청구단계목록'].length > 0)
+                      ? detail.hospital['청구단계목록']
+                      : DEFAULT_STEPS;
+                    return currentSteps.map((step, idx) => (
+                      <div key={step.key} className="flex items-center gap-2 text-sm">
+                        <span className="text-gray-400 text-xs w-5 text-center">{idx + 1}</span>
+                        <span className="text-lg">{step.icon}</span>
+                        <span className="text-gray-700">{step.label}</span>
+                      </div>
+                    ));
+                  })()}
+                  {(!detail.hospital['청구단계목록'] || detail.hospital['청구단계목록'].length === 0) && (
+                    <p className="text-xs text-gray-400 mt-1">기본 4단계 사용 중 — 수정 버튼으로 커스터마이징 가능</p>
                   )}
                 </div>
               )}

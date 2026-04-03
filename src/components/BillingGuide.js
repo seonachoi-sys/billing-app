@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { useData } from '../context/DataContext';
 
-const STEPS = [
+const DEFAULT_STEPS = [
   { key: 'step1', label: '청구서 생성', icon: '📝', desc: '청구 금액 확정 및 청구서 작성' },
   { key: 'step2', label: '거래명세서 발송', icon: '📮', desc: '거래명세서를 병원에 발송' },
   { key: 'step3', label: '입금 확인', icon: '💰', desc: '입금 여부 확인 및 대사' },
   { key: 'step4', label: '세금계산서 발행', icon: '🧾', desc: '홈택스 세금계산서 발행' },
 ];
 
-const DEFAULT_STEPS = { step1: false, step2: false, step3: false, step4: false };
+const ICON_OPTIONS = ['📝', '📮', '💰', '🧾', '📞', '📧', '📋', '✅', '📦', '🔍', '💳', '🏥'];
+
+export { DEFAULT_STEPS };
 
 const BillingGuide = ({ entry }) => {
   const { hospitals, updateLedgerEntry } = useData();
@@ -16,12 +18,15 @@ const BillingGuide = ({ entry }) => {
 
   const hospital = hospitals.find(h => h['거래처명'] === entry['거래처명']);
   const manual = hospital?.['청구매뉴얼'] || '';
-  const steps = entry['청구단계'] || DEFAULT_STEPS;
-  const completedCount = Object.values(steps).filter(Boolean).length;
-  const percent = Math.round((completedCount / 4) * 100);
+  const customSteps = hospital?.['청구단계목록'];
+  const steps = (customSteps && customSteps.length > 0) ? customSteps : DEFAULT_STEPS;
+
+  const checkedState = entry['청구단계'] || {};
+  const completedCount = steps.filter(s => checkedState[s.key]).length;
+  const percent = steps.length > 0 ? Math.round((completedCount / steps.length) * 100) : 0;
 
   const toggleStep = (stepKey) => {
-    const updated = { ...steps, [stepKey]: !steps[stepKey] };
+    const updated = { ...checkedState, [stepKey]: !checkedState[stepKey] };
     updateLedgerEntry(entry._id, { '청구단계': updated });
   };
 
@@ -31,19 +36,19 @@ const BillingGuide = ({ entry }) => {
       <div className="flex items-center gap-3">
         <div className="flex-1 bg-gray-200 rounded-full h-2.5">
           <div
-            className={`h-2.5 rounded-full transition-all ${completedCount === 4 ? 'bg-green-500' : 'bg-blue-500'}`}
+            className={`h-2.5 rounded-full transition-all ${completedCount === steps.length ? 'bg-green-500' : 'bg-blue-500'}`}
             style={{ width: `${percent}%` }}
           />
         </div>
-        <span className={`text-xs font-semibold whitespace-nowrap ${completedCount === 4 ? 'text-green-600' : 'text-blue-600'}`}>
-          {completedCount}/4 완료
+        <span className={`text-xs font-semibold whitespace-nowrap ${completedCount === steps.length ? 'text-green-600' : 'text-blue-600'}`}>
+          {completedCount}/{steps.length} 완료
         </span>
       </div>
 
-      {/* 4단계 카드 */}
-      <div className="grid grid-cols-4 gap-3">
-        {STEPS.map((s) => {
-          const checked = steps[s.key];
+      {/* 단계 카드 */}
+      <div className={`grid gap-3`} style={{ gridTemplateColumns: `repeat(${Math.min(steps.length, 6)}, minmax(0, 1fr))` }}>
+        {steps.map((s) => {
+          const checked = checkedState[s.key];
           const isActive = activeStep === s.key;
           return (
             <div
@@ -62,7 +67,7 @@ const BillingGuide = ({ entry }) => {
               <label className="flex items-center justify-center gap-1.5 cursor-pointer" onClick={e => e.stopPropagation()}>
                 <input
                   type="checkbox"
-                  checked={checked}
+                  checked={checked || false}
                   onChange={() => toggleStep(s.key)}
                   className="rounded border-gray-300"
                 />
@@ -80,7 +85,7 @@ const BillingGuide = ({ entry }) => {
         <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-sm font-semibold text-yellow-800">
-              📋 {STEPS.find(s => s.key === activeStep)?.label} — 청구 매뉴얼
+              📋 {steps.find(s => s.key === activeStep)?.label} — 청구 매뉴얼
             </span>
           </div>
           {manual ? (
@@ -97,3 +102,4 @@ const BillingGuide = ({ entry }) => {
 };
 
 export default BillingGuide;
+export { ICON_OPTIONS };
