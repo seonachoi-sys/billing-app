@@ -102,63 +102,54 @@ const EmailSendModal = ({ info, onClose, onSent }) => {
               <div className="bg-gray-100 px-4 py-2 border-b flex items-center gap-2">
                 <span className="text-xs text-gray-500">미리보기</span>
               </div>
-              <div className="p-5 bg-white text-sm leading-relaxed">
+              <div className="p-5 bg-white text-sm leading-relaxed whitespace-pre-line">
                 {isReplyRequest ? (
-                  /* 회신 요청 템플릿 미리보기 */
-                  <div className="space-y-3">
-                    <p className="text-gray-800">
-                      안녕하세요, <span className="font-semibold text-blue-700">{info.hospitalName}</span> 담당자님.
-                    </p>
-                    <p className="text-gray-800">
-                      ㈜타이로스코프입니다.
-                    </p>
-                    <p className="text-gray-800">
-                      <span className="font-semibold">{info.year}년 {info.month}월</span> 이용 건수 확인을 위해 연락드립니다.
-                    </p>
-                    <p className="text-gray-800">
-                      이번 달 이용 건수를 확인하시어 <span className="font-semibold text-red-600">회신</span> 부탁드립니다.
-                    </p>
-                    <p className="text-gray-600 text-xs mt-4 pt-3 border-t">
-                      ※ 본 메일은 이용 건수 회신 요청 메일입니다.
-                    </p>
+                  /* 회신 요청 템플릿 (template_376r7kx) */
+                  <div className="space-y-2 text-gray-800">
+                    <p><span className="font-semibold text-blue-700">{info.hospitalName}</span> 관계자님, 안녕하세요.</p>
+                    <p>(주)타이로스코프 경영관리팀입니다.</p>
+                    <p>당사의 Glandy 서비스를 이용해 주셔서 깊이 감사드립니다.</p>
+                    <p>다름이 아니오라, 신의료기술평가 유예 제도에 따른 데이터 교차 검증을 위해 <span className="font-semibold">{info.year}년 {info.month}월</span> 처방건수 통지를 부탁드립니다.</p>
+                    <div className="bg-gray-50 rounded-lg p-3 my-2 text-gray-700">
+                      <p className="font-semibold text-gray-800 mb-1">[요청 사항]</p>
+                      <p>* 내용: 매 월 Glandy 처방(사용) 건수</p>
+                      <p>* 기한: 매월 7일까지 회신 요망<span className="text-xs text-gray-500">(세금계산서 발행 기한 준수를 위함)</span></p>
+                    </div>
+                    <p>본 확인 절차는 정확한 비용 정산은 물론, 신의료기술평가 유예 기간 동안 심평원에 신고되는 처방 데이터의 정확성을 확보하기 위함입니다.</p>
+                    <p>바쁘시더라도 원활한 업무 처리를 위해 <span className="font-semibold text-red-600">기한 내 회신</span> 부탁드리겠습니다.</p>
+                    <p>관련하여 문의 사항이 있으시면 연락 주십시오.</p>
+                    <p className="mt-2">감사합니다.</p>
+                    <p className="text-gray-600">(주)타이로스코프 경영관리팀 드림</p>
                   </div>
                 ) : (
-                  /* 건수 안내 템플릿 미리보기 */
-                  <div className="space-y-3">
-                    <p className="text-gray-800">
-                      안녕하세요, <span className="font-semibold text-blue-700">{info.contactName || info.hospitalName + ' 담당자'}</span>님.
-                    </p>
-                    <p className="text-gray-800">
-                      ㈜타이로스코프입니다.
-                    </p>
-                    <p className="text-gray-800">
-                      <span className="font-semibold">{info.year}년 {info.month}월</span>{' '}
-                      <span className="font-semibold text-blue-700">{info.hospitalName}</span>의 이용 건수를 안내드립니다.
-                    </p>
-                    <div className="bg-blue-50 rounded-lg p-4 my-3">
+                  /* 건수 안내 템플릿 (template_24vd0im) */
+                  <div className="space-y-2 text-gray-800">
+                    <p><span className="font-semibold text-blue-700">{info.contactName || info.hospitalName + ' 담당자'}</span> 선생님, 안녕하세요.</p>
+                    <p>(주)타이로스코프 경영관리팀입니다.</p>
+                    <p>당사의 Glandy 서비스를 이용해 주셔서 깊이 감사드립니다.</p>
+                    <p><span className="font-semibold">{info.year}년 {info.month}월</span> Glandy 처방 건수 안내드립니다.</p>
+                    <div className="bg-blue-50 rounded-lg p-3 my-2">
+                      <p className="font-semibold text-gray-800 mb-1">[처방 현황]</p>
                       <table className="w-full text-sm">
                         <tbody>
                           <tr className="border-b border-blue-100">
-                            <td className="py-1.5 text-gray-600">Glandy CAS</td>
+                            <td className="py-1.5 text-gray-700">- Glandy CAS</td>
                             <td className="py-1.5 text-right font-semibold">{info.casCount}건</td>
                           </tr>
                           <tr className="border-b border-blue-100">
-                            <td className="py-1.5 text-gray-600">Glandy EXO</td>
+                            <td className="py-1.5 text-gray-700">- Glandy EXO</td>
                             <td className="py-1.5 text-right font-semibold">{info.exoCount}건</td>
                           </tr>
                           <tr>
-                            <td className="py-1.5 font-semibold text-gray-800">합계</td>
+                            <td className="py-1.5 font-semibold text-gray-800">- 총계</td>
                             <td className="py-1.5 text-right font-bold text-blue-700">{info.totalCount}건</td>
                           </tr>
                         </tbody>
                       </table>
                     </div>
-                    <p className="text-gray-800">
-                      건수 확인 후 이상이 있으시면 회신 부탁드립니다.
-                    </p>
-                    <p className="text-gray-600 text-xs mt-4 pt-3 border-t">
-                      ※ 본 메일은 월별 이용 건수 안내 메일입니다.
-                    </p>
+                    <p>위 내용에 이상이 없는지 확인 부탁드리며, 검토 후 <span className="font-semibold text-red-600">회신</span> 주시면 감사하겠습니다.</p>
+                    <p className="mt-2">감사합니다.</p>
+                    <p className="text-gray-600">(주)타이로스코프 경영관리팀 드림</p>
                   </div>
                 )}
               </div>
