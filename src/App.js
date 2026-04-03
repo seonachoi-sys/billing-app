@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { HashRouter, Routes, Route } from 'react-router-dom';
 import { DataProvider, useData } from './context/DataContext';
 import Dashboard from './components/Dashboard';
 import MonthlyBilling from './components/MonthlyBilling';
@@ -7,6 +8,7 @@ import InvoiceGenerator from './components/InvoiceGenerator';
 import HospitalManagement from './components/HospitalManagement';
 import Settings from './components/Settings';
 import Statistics from './components/Statistics';
+import SharedStats from './components/SharedStats';
 import OverdueAlerts from './components/OverdueAlerts';
 
 const tabs = [
@@ -84,7 +86,12 @@ function AppContent() {
 function App() {
   return (
     <DataProvider>
-      <AppContent />
+      <HashRouter>
+        <Routes>
+          <Route path="/stats" element={<SharedStats />} />
+          <Route path="*" element={<AppContent />} />
+        </Routes>
+      </HashRouter>
     </DataProvider>
   );
 }

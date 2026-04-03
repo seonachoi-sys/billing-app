@@ -50,6 +50,7 @@ const InvoiceGenerator = () => {
   const stampRef = useRef(null);
   const [paymentTerms, setPaymentTerms] = useState('');
   const [editingPayment, setEditingPayment] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // 직인 이미지 사전 로드
   useEffect(() => {
@@ -72,6 +73,15 @@ const InvoiceGenerator = () => {
     if (!grouped[name]) grouped[name] = [];
     grouped[name].push(item);
   });
+
+  // 검색 필터 적용
+  const filteredGrouped = searchQuery
+    ? Object.fromEntries(
+        Object.entries(grouped).filter(([name]) =>
+          name.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      )
+    : grouped;
 
   const selectedItems = ledger.filter(i => selectedIds.includes(i._id));
 
@@ -137,8 +147,30 @@ const InvoiceGenerator = () => {
             </button>
           </div>
         </div>
+        {/* 검색 */}
+        <div className="mb-4">
+          <div className="relative">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="거래처명 검색..."
+              className="w-full border border-gray-300 rounded-md pl-9 pr-8 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm">&times;</button>
+            )}
+          </div>
+          {searchQuery && (
+            <p className="text-xs text-gray-400 mt-1">
+              {Object.keys(filteredGrouped).length}개 거래처 / 전체 {Object.keys(grouped).length}개
+            </p>
+          )}
+        </div>
         <div className="space-y-3">
-          {Object.entries(grouped).map(([clientName, items]) => (
+          {Object.entries(filteredGrouped).sort(([a], [b]) => a.localeCompare(b, 'ko')).map(([clientName, items]) => (
             <div key={clientName} className="border border-gray-200 rounded-lg overflow-hidden">
               <div className="bg-gray-50 px-4 py-2 flex items-center gap-3 border-b">
                 <input type="checkbox"
@@ -164,7 +196,7 @@ const InvoiceGenerator = () => {
               </div>
             </div>
           ))}
-          {Object.keys(grouped).length === 0 && (
+          {Object.keys(filteredGrouped).length === 0 && (
             <p className="text-center text-gray-400 py-8">발행 대상 건이 없습니다</p>
           )}
         </div>

@@ -314,7 +314,7 @@ const MonthlyBilling = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {monthItems.map((item) => {
+                {[...monthItems].sort((a, b) => (a['거래처명'] || '').localeCompare(b['거래처명'] || '', 'ko')).map((item) => {
                   const isLocked = item['채권상태'] === '청구확정' || item['채권상태'] === '완납';
                   const companyQty = parseInt(item['당월발생']) || 0;
                   const hospitalQty = parseInt(item['병원수량']) || 0;
