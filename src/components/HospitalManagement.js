@@ -7,8 +7,7 @@ import { DEFAULT_STEPS, ICON_OPTIONS } from './BillingGuide';
 
 const HospitalManagement = () => {
   const { hospitals, ledger, master, getHospitalSummary, addHospital, deleteHospital, updateContract, updateHospital } = useData();
-  // selectedHospital은 하위 호환용 (일부 useEffect에서 참조)
-  const [selectedHospital, setSelectedHospital] = useState(null);
+  const [selectedName, setSelectedName] = useState(null);
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingContract, setEditingContract] = useState(null);
@@ -44,6 +43,7 @@ const HospitalManagement = () => {
 
   const getDetail = (hospitalName) => {
     const records = hospitals.filter(h => h['거래처명'] === hospitalName);
+    if (records.length === 0) return null;
     const primary = records[0];
     const items = ledger.filter(l => l['거래처명'] === hospitalName);
     const contract = master.find(m => m['거래처'] === hospitalName);
@@ -67,8 +67,6 @@ const HospitalManagement = () => {
     return { hospital: primary, records, items, contract, productSummary, ...summary };
   };
 
-  // 선택된 병원 (이름 기준)
-  const [selectedName, setSelectedName] = useState(null);
   const currentHospital = selectedName ? hospitals.find(h => h['거래처명'] === selectedName) : null;
   const detail = selectedName ? getDetail(selectedName) : null;
 
