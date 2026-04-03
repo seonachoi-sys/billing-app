@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { useData } from '../context/DataContext';
-import { fmt, generateId } from '../utils/calculations';
+import { fmt, generateId, generateClientCode } from '../utils/calculations';
 import HospitalForm from './forms/HospitalForm';
 import { DEFAULT_STEPS, ICON_OPTIONS } from './BillingGuide';
 
 const HospitalManagement = () => {
-  const { hospitals, ledger, master, getHospitalSummary, deleteHospital, updateContract, updateHospital } = useData();
+  const { hospitals, ledger, master, getHospitalSummary, addHospital, deleteHospital, updateContract, updateHospital } = useData();
   const [selectedHospital, setSelectedHospital] = useState(null);
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -50,6 +50,32 @@ const HospitalManagement = () => {
       deleteHospital(hospital._id);
       if (selectedHospital?._id === hospital._id) setSelectedHospital(null);
     }
+  };
+
+  // 동일 병원에 다른 제품 추가
+  const handleAddProduct = (hospital) => {
+    const currentProduct = hospital['제품명'];
+    const otherProduct = currentProduct === 'CAS' ? 'EXO' : 'CAS';
+
+    // 이미 해당 제품이 등록되어 있는지 확인
+    const exists = hospitals.some(
+      h => h['거래처명'] === hospital['거래처명'] && h['제품명'] === otherProduct
+    );
+    if (exists) {
+      alert(`${hospital['거래처명']}에 ${otherProduct} 제품이 이미 등록되어 있습니다.`);
+      return;
+    }
+
+    if (!window.confirm(`${hospital['거래처명']}에 ${otherProduct} 제품을 추가하시겠습니까?\n기존 병원 정보가 그대로 복사됩니다.`)) return;
+
+    const { _id, ...rest } = hospital;
+    const newHospital = {
+      ...rest,
+      '제품명': otherProduct,
+      '업체코드': generateClientCode(hospitals),
+    };
+    addHospital(newHospital);
+    alert(`${hospital['거래처명']} — ${otherProduct} 제품이 추가되었습니다.`);
   };
 
   return (
@@ -106,6 +132,10 @@ const HospitalManagement = () => {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold text-gray-800">{detail.hospital['거래처명']}</h3>
                 <div className="flex gap-2">
+                  <button onClick={() => handleAddProduct(detail.hospital)}
+                    className="text-sm text-green-600 hover:text-green-800 px-3 py-1 border border-green-300 rounded hover:bg-green-50">
+                    + {detail.hospital['제품명'] === 'CAS' ? 'EXO' : 'CAS'} 추가
+                  </button>
                   <button onClick={() => handleEdit(detail.hospital)}
                     className="text-sm text-blue-500 hover:text-blue-700 px-3 py-1 border rounded">수정</button>
                   <button onClick={() => handleDelete(detail.hospital)}
