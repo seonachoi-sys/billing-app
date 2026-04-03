@@ -12,7 +12,7 @@ const HospitalForm = ({ onClose, editHospital = null }) => {
     '업체코드': '', '병원구분': '의원', '거래처명': '', '진료과': '내과',
     '담당의사': '', '제품명': 'CAS', '납품가': '', '청구형태': '직납',
     '정산주기': '60일', '영업담당자': '', '병원담당자명': '', '병원담당자전화': '',
-    '병원담당자이메일': '', '업체': '', '비고': '',
+    '병원담당자이메일': '', '업체': '', '청구매뉴얼': '', '비고': '',
     // 계약 정보
     '계약일': '', '갱신': '',
   });
@@ -67,6 +67,7 @@ const HospitalForm = ({ onClose, editHospital = null }) => {
       '병원담당자전화': form['병원담당자전화'],
       '병원담당자이메일': form['병원담당자이메일'],
       '업체': form['업체'],
+      '청구매뉴얼': form['청구매뉴얼'],
       '비고': form['비고'],
     };
 
@@ -249,6 +250,15 @@ const HospitalForm = ({ onClose, editHospital = null }) => {
               </div>
             </div>
           )}
+
+          {/* 청구 매뉴얼 */}
+          <div className="border-t pt-4 mt-2">
+            <h4 className="text-sm font-semibold text-gray-700 mb-3">청구 매뉴얼</h4>
+            <textarea value={form['청구매뉴얼']} onChange={set('청구매뉴얼')}
+              rows={4}
+              placeholder="청구 방법, 발송 방식(이메일/우편/팩스), 세금계산서 발행 방법, 특이사항 등을 기록하세요"
+              className="w-full border rounded-md px-3 py-2 text-sm resize-y" />
+          </div>
 
           <div>
             <label className="block text-sm text-gray-600 mb-1">비고</label>

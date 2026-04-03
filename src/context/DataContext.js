@@ -110,6 +110,7 @@ export function DataProvider({ children }) {
         '채권연령': 0,
         '잠금': 'FALSE',
         '비고': '',
+        '청구단계': { step1: false, step2: false, step3: false, step4: false },
       });
     });
 
@@ -145,7 +146,7 @@ export function DataProvider({ children }) {
       const totalAmt = newOverdue.reduce((s, e) => s + (e['미수금'] || 0), 0);
       new Notification('매출청구 연체 알림', {
         body: `연체 ${newOverdue.length}건 - ${totalAmt.toLocaleString()}원 미수`,
-        icon: '/stamp.png',
+        icon: '/stamp.jpg',
       });
     } else if ('Notification' in window && Notification.permission !== 'denied') {
       Notification.requestPermission();

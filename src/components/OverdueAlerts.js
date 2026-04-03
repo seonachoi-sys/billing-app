@@ -65,7 +65,7 @@ const OverdueAlerts = () => {
       urgent.forEach(c => {
         new Notification('계약 만료 알림', {
           body: `${c.name} (${c.product}) - ${c.remaining <= 0 ? '만료됨' : c.remaining + '일 남음'} (${c.expiryDate})`,
-          icon: '/stamp.png',
+          icon: '/stamp.jpg',
         });
       });
     }

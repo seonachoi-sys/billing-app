@@ -69,7 +69,7 @@ const Settings = () => {
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification('매출청구 일일 알림', {
         body: alerts.slice(0, 3).join('\n') + (alerts.length > 3 ? `\n...외 ${alerts.length - 3}건` : ''),
-        icon: '/stamp.png',
+        icon: '/stamp.jpg',
       });
     }
 

@@ -1,15 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import { fmt } from '../utils/calculations';
 import HospitalForm from './forms/HospitalForm';
 
 const HospitalManagement = () => {
-  const { hospitals, ledger, master, getHospitalSummary, deleteHospital, updateContract } = useData();
+  const { hospitals, ledger, master, getHospitalSummary, deleteHospital, updateContract, updateHospital } = useData();
   const [selectedHospital, setSelectedHospital] = useState(null);
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingContract, setEditingContract] = useState(null);
   const [editHospital, setEditHospital] = useState(null);
+  const [editingManual, setEditingManual] = useState(false);
+  const [manualText, setManualText] = useState('');
+
+  useEffect(() => {
+    setEditingManual(false);
+  }, [selectedHospital]);
 
   const filteredHospitals = hospitals.filter(h =>
     h['거래처명'] && h['거래처명'].includes(search)
@@ -214,6 +220,46 @@ const HospitalManagement = () => {
                 )}
               </div>
             )}
+
+            {/* 청구 매뉴얼 */}
+            <div className="bg-white rounded-lg shadow p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-gray-700">📋 청구 매뉴얼</h4>
+                {editingManual ? (
+                  <div className="flex gap-2">
+                    <button onClick={() => {
+                      updateHospital(detail.hospital._id, { '청구매뉴얼': manualText });
+                      setEditingManual(false);
+                    }} className="text-xs text-blue-500 hover:text-blue-700 px-2 py-1 border rounded">저장</button>
+                    <button onClick={() => setEditingManual(false)}
+                      className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 border rounded">취소</button>
+                  </div>
+                ) : (
+                  <button onClick={() => {
+                    setManualText(detail.hospital['청구매뉴얼'] || '');
+                    setEditingManual(true);
+                  }} className="text-xs text-blue-500 hover:text-blue-700 px-2 py-1 border rounded">수정</button>
+                )}
+              </div>
+              {editingManual ? (
+                <textarea
+                  value={manualText}
+                  onChange={e => setManualText(e.target.value)}
+                  autoFocus
+                  rows={5}
+                  placeholder="청구 방법, 발송 방식(이메일/우편/팩스), 세금계산서 발행 방법, 담당자 연락처, 특이사항 등을 기록하세요"
+                  className="w-full border rounded-md px-3 py-2 text-sm resize-y"
+                />
+              ) : (
+                <div className="text-sm whitespace-pre-wrap">
+                  {detail.hospital['청구매뉴얼'] ? (
+                    <p className="text-gray-700 leading-relaxed">{detail.hospital['청구매뉴얼']}</p>
+                  ) : (
+                    <p className="text-gray-400 italic">등록된 청구 매뉴얼이 없습니다. 수정 버튼을 눌러 작성해주세요.</p>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* 매출/미수금 */}
             <div className="grid grid-cols-2 gap-4">

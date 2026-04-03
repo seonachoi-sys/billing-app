@@ -1,6 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { fmt } from '../utils/calculations';
+
+const STAMP_URL = process.env.PUBLIC_URL + '/stamp.jpg';
 
 // 청구기간 계산: YYYY-MM → "YYYY.MM.01 ~ YYYY.MM.말일"
 function getBillingPeriod(billingMonth) {
@@ -43,6 +45,22 @@ const InvoiceGenerator = () => {
   const [showInvoice, setShowInvoice] = useState(false);
   const [invoiceDate, setInvoiceDate] = useState(null); // null이면 자동 계산
   const [editingDate, setEditingDate] = useState(false);
+  const [stampLoaded, setStampLoaded] = useState(false);
+  const [stampError, setStampError] = useState(false);
+  const stampRef = useRef(null);
+  const [paymentTerms, setPaymentTerms] = useState('');
+  const [editingPayment, setEditingPayment] = useState(false);
+
+  // 직인 이미지 사전 로드
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => setStampLoaded(true);
+    img.onerror = () => {
+      console.error('직인 이미지 로드 실패:', STAMP_URL);
+      setStampError(true);
+    };
+    img.src = STAMP_URL;
+  }, []);
 
   const billableItems = ledger.filter(item =>
     (item['채권상태'] === '청구확정' || item['채권상태'] === '정상') && item['청구금액'] > 0
@@ -88,6 +106,8 @@ const InvoiceGenerator = () => {
       }
     });
     setInvoiceDate(null); // 새 발행시 자동 계산으로 리셋
+    setPaymentTerms(invoiceTemplate.paymentTerms || '');
+    setEditingPayment(false);
     setShowInvoice(true);
   };
 
@@ -158,7 +178,22 @@ const InvoiceGenerator = () => {
             <div className="flex items-center justify-between px-6 py-3 border-b print:hidden">
               <h3 className="font-semibold text-gray-700">거래명세서 미리보기</h3>
               <div className="flex gap-2">
-                <button onClick={() => window.print()}
+                <button onClick={() => {
+                    // PDF 파일명: 발행일_상호_거래명세서
+                    const d = effectiveDate;
+                    const ymd = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+                    const prevTitle = document.title;
+                    document.title = `${ymd}_${receiverName}_거래명세서`;
+                    const doPrint = () => {
+                      window.print();
+                      setTimeout(() => { document.title = prevTitle; }, 500);
+                    };
+                    if (stampRef.current && !stampRef.current.complete) {
+                      stampRef.current.onload = doPrint;
+                    } else {
+                      doPrint();
+                    }
+                  }}
                   className="bg-green-500 text-white px-4 py-2 rounded text-sm hover:bg-green-600">
                   인쇄 / PDF 저장
                 </button>
@@ -175,30 +210,30 @@ const InvoiceGenerator = () => {
               {/* 제목 */}
               <h1 style={{
                 textAlign: 'center', fontSize: '22pt', fontWeight: '700',
-                letterSpacing: '12px', marginBottom: '24px', color: '#111',
+                letterSpacing: '12px', marginBottom: '36px', color: '#111',
               }}>
                 거 래 명 세 서
               </h1>
 
               {/* 관리번호 */}
-              <div style={{ marginBottom: '16px', fontSize: '9pt', color: '#666' }}>
+              <div style={{ marginBottom: '12px', fontSize: '9pt', color: '#666', paddingLeft: '2px' }}>
                 <span>관리NO : INV-{effectiveDate.getFullYear()}{String(effectiveDate.getMonth()+1).padStart(2,'0')}-{String(selectedItems.length).padStart(3,'0')}</span>
               </div>
 
               {/* 상단 정보: 공급받는 자 / 공급자 */}
               <div style={{ display: 'flex', gap: '12px', marginBottom: '20px' }}>
                 {/* 공급받는 자 (좌측) — 테두리 없음, 상호 + 발행일만 */}
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: 1, paddingLeft: '2px' }}>
                   <table className="inv-receiver-table">
                     <tbody>
                       <tr>
-                        <td className="receiver-label">상 호</td>
-                        <td style={{ fontWeight: '700', fontSize: '11pt' }}>{receiverName}</td>
+                        <td className="receiver-label" style={{ fontSize: '11pt' }}>상 호</td>
+                        <td style={{ fontWeight: '700', fontSize: '12pt' }}>{receiverName}</td>
                       </tr>
                       <tr>
-                        <td className="receiver-label">발행일</td>
+                        <td className="receiver-label" style={{ fontSize: '11pt' }}>발행일</td>
                         <td
-                          style={{ fontSize: '10pt', cursor: 'pointer' }}
+                          style={{ fontSize: '11pt', cursor: 'pointer' }}
                           onClick={() => setEditingDate(true)}
                         >
                           {editingDate ? (
@@ -296,7 +331,7 @@ const InvoiceGenerator = () => {
                   {selectedItems.map((item, i) => (
                     <tr key={i}>
                       <td style={{ textAlign: 'center' }}>{i + 1}</td>
-                      <td>{productFullName(item['제품명'])}</td>
+                      <td style={{ textAlign: 'center' }}>{productFullName(item['제품명'])}</td>
                       <td style={{ textAlign: 'center', fontSize: '8.5pt' }}>{getBillingPeriod(item['청구기준'])}</td>
                       <td style={{ textAlign: 'center' }}>{item['최종건수']} 건</td>
                       <td style={{ textAlign: 'right' }}>{fmt(item['단가'])}</td>
@@ -304,8 +339,8 @@ const InvoiceGenerator = () => {
                       <td style={{ textAlign: 'right' }}>{fmt(item['부가세'])}</td>
                     </tr>
                   ))}
-                  {/* 빈 행 채우기 (최소 8행) */}
-                  {Array.from({ length: Math.max(0, 8 - selectedItems.length) }).map((_, i) => (
+                  {/* 빈 행 채우기 (최소 5행) */}
+                  {Array.from({ length: Math.max(0, 5 - selectedItems.length) }).map((_, i) => (
                     <tr key={`empty-${i}`}>
                       <td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td>
                     </tr>
@@ -331,7 +366,26 @@ const InvoiceGenerator = () => {
                         <td className="label" style={{ width: '50px', verticalAlign: 'top' }}>비 고</td>
                         <td style={{ verticalAlign: 'top', fontSize: '8.5pt', lineHeight: '1.8' }}>
                           <p>1. 계좌번호 : {invoiceTemplate.bankAccount}</p>
-                          <p>2. 결제 조건 : {invoiceTemplate.paymentTerms}</p>
+                          <p style={{ cursor: 'pointer' }} onClick={() => setEditingPayment(true)}>
+                            2. 결제 조건 : {editingPayment ? (
+                              <input
+                                type="text"
+                                className="remark-edit-input"
+                                value={paymentTerms}
+                                autoFocus
+                                style={{
+                                  fontSize: '8.5pt', border: '1px solid #999',
+                                  padding: '1px 6px', borderRadius: '3px', width: '200px',
+                                }}
+                                onChange={(e) => setPaymentTerms(e.target.value)}
+                                onBlur={() => setEditingPayment(false)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            ) : (
+                              <span style={{ borderBottom: '1px dashed #aaa' }}>{paymentTerms}</span>
+                            )}
+                          </p>
                           <p>3. 청구 담당 : {invoiceTemplate.contactTeam}</p>
                         </td>
                       </tr>
@@ -369,20 +423,33 @@ const InvoiceGenerator = () => {
                 </p>
               </div>
 
-              <div style={{ textAlign: 'right', paddingRight: '20px', position: 'relative' }}>
-                <p style={{ fontSize: '10pt', color: '#555', marginBottom: '8px' }}>{dateStr}</p>
+              <div style={{ textAlign: 'right', paddingRight: '110px', position: 'relative' }}>
                 <p style={{ fontSize: '13pt', fontWeight: '700', color: '#111' }}>{invoiceTemplate.company}</p>
                 <p style={{ fontSize: '10pt', color: '#444' }}>대표이사 {invoiceTemplate.representative}</p>
-                <img
-                  src="/stamp.png"
-                  alt="직인"
-                  className="invoice-stamp"
-                  style={{
-                    position: 'absolute', right: '0px', bottom: '-15px',
-                    width: '90px', height: '90px', objectFit: 'contain', opacity: 0.85,
-                  }}
-                  onError={(e) => { e.target.style.display = 'none'; }}
-                />
+                {!stampError && (
+                  <img
+                    ref={stampRef}
+                    src={STAMP_URL}
+                    alt="직인"
+                    className="invoice-stamp"
+                    style={{
+                      position: 'absolute', right: '10px', bottom: '-15px',
+                      width: '90px', height: '90px', objectFit: 'contain', opacity: 0.85,
+                    }}
+                    onError={(e) => {
+                      console.error('직인 이미지 렌더링 실패:', STAMP_URL);
+                      setStampError(true);
+                    }}
+                  />
+                )}
+                {stampError && (
+                  <span style={{
+                    position: 'absolute', right: '10px', bottom: '0px',
+                    fontSize: '8pt', color: '#cc0000',
+                  }} className="print:hidden">
+                    직인 이미지 로드 실패
+                  </span>
+                )}
               </div>
 
             </div>
