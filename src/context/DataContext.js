@@ -39,12 +39,20 @@ export function DataProvider({ children }) {
 
     async function initFirebase() {
       try {
-        // 1. localStorage → Firestore 마이그레이션 (최초 1회)
+        // 1. Firestore 연결 테스트 (빠른 실패)
+        const testResult = await fetchCollection(COLLECTIONS.LEDGER);
+        if (testResult === null) {
+          throw new Error('Firestore 연결 불가 — 보안 규칙을 확인해주세요');
+        }
+
+        if (!mounted) return;
+
+        // 2. localStorage → Firestore 마이그레이션 (최초 1회)
         await migrateToFirestore();
 
-        // 2. Firestore에서 초기 데이터 로드
+        // 3. Firestore에서 초기 데이터 로드
         const [fbLedger, fbHospitals, fbMaster] = await Promise.all([
-          fetchCollection(COLLECTIONS.LEDGER),
+          Promise.resolve(testResult), // 이미 가져온 ledger 재사용
           fetchCollection(COLLECTIONS.HOSPITALS),
           fetchCollection(COLLECTIONS.MASTER),
         ]);
@@ -56,7 +64,7 @@ export function DataProvider({ children }) {
         if (fbHospitals && fbHospitals.length > 0) setHospitals(fbHospitals);
         if (fbMaster && fbMaster.length > 0) setMaster(fbMaster);
 
-        // 3. 실시간 구독 시작 (다른 탭/사용자 변경 감지)
+        // 4. 실시간 구독 시작 (다른 탭/사용자 변경 감지)
         const unsub1 = subscribeCollection(COLLECTIONS.LEDGER, (data) => {
           if (data.length > 0) setLedger(data);
         });
@@ -71,7 +79,7 @@ export function DataProvider({ children }) {
         if (mounted) setFirebaseReady(true);
         console.log('🔥 Firebase 연결 완료');
       } catch (err) {
-        console.error('Firebase 초기화 실패, localStorage 모드로 동작:', err);
+        console.warn('Firebase 초기화 실패, localStorage 모드로 동작:', err.message);
         if (mounted) {
           setFirebaseError(err.message);
           setFirebaseReady(true); // 오류여도 앱은 동작하게
@@ -88,8 +96,9 @@ export function DataProvider({ children }) {
   // eslint-disable-next-line
   }, []);
 
-  // --- Firestore 동기화 헬퍼 ---
+  // --- Firestore 동기화 헬퍼 (Firebase 연결 실패 시 스킵) ---
   const syncToFirestore = useCallback(async (collectionName, id, data, action = 'upsert') => {
+    if (firebaseError) return; // Firebase 연결 실패 시 localStorage만 사용
     try {
       if (action === 'delete') {
         await deleteDocument(collectionName, id);
