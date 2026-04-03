@@ -11,6 +11,35 @@ import {
 
 const DataContext = createContext();
 
+// --- 중복 제거 유틸 (모듈 레벨, 어디서든 재사용) ---
+
+/** _id 기반 중복 제거 (hospitals, master 등) */
+function dedup(items) {
+  const seen = new Map();
+  items.forEach(item => {
+    if (item._id && !seen.has(item._id)) seen.set(item._id, item);
+  });
+  return Array.from(seen.values());
+}
+
+/** ledger 전용: 비즈니스 키(거래처+제품+청구기준) 기반 중복 제거 */
+function dedupLedger(items) {
+  const seen = new Map();
+  items.forEach(item => {
+    const bizKey = `${item['거래처명']}||${item['제품명']}||${item['청구기준']}`;
+    const existing = seen.get(bizKey);
+    if (!existing) {
+      seen.set(bizKey, item);
+    } else {
+      // 더 최근에 수정된 항목 유지 (청구금액이 있는 쪽 우선, 같으면 먼저 온 것 유지)
+      if ((item['청구금액'] || 0) > (existing['청구금액'] || 0)) {
+        seen.set(bizKey, item);
+      }
+    }
+  });
+  return Array.from(seen.values());
+}
+
 // 시드 데이터에 _id 부여
 function initializeSeed(data) {
   return {
@@ -24,8 +53,9 @@ function initializeSeed(data) {
 const SEED = initializeSeed(seedData);
 
 export function DataProvider({ children }) {
-  const [ledger, setLedger] = useLocalStorage('billing_ledger', SEED.ledger);
-  const [hospitals, setHospitals] = useLocalStorage('billing_hospitals', SEED.hospitals);
+  // localStorage 초기값에도 dedup 적용 (이전 세션에서 쌓인 중복 방어)
+  const [ledger, setLedgerRaw] = useLocalStorage('billing_ledger', SEED.ledger);
+  const [hospitals, setHospitalsRaw] = useLocalStorage('billing_hospitals', SEED.hospitals);
   const [master, setMaster] = useLocalStorage('billing_master', SEED.master);
   const [invoiceTemplate] = useLocalStorage('billing_template', SEED.invoiceTemplate);
   const [notifiedIds, setNotifiedIds] = useLocalStorage('billing_notified', []);
@@ -35,6 +65,22 @@ export function DataProvider({ children }) {
   const [firebaseError, setFirebaseError] = useState(null);
   const notificationSent = useRef(false);
   const unsubscribes = useRef([]);
+  const isInitializing = useRef(true); // 초기화 중 구독 콜백 무시 플래그
+
+  // --- dedup 래핑 setter (중복 방어) ---
+  const setLedger = useCallback((valueOrFn) => {
+    setLedgerRaw(prev => {
+      const next = typeof valueOrFn === 'function' ? valueOrFn(prev) : valueOrFn;
+      return dedupLedger(next);
+    });
+  }, [setLedgerRaw]);
+
+  const setHospitals = useCallback((valueOrFn) => {
+    setHospitalsRaw(prev => {
+      const next = typeof valueOrFn === 'function' ? valueOrFn(prev) : valueOrFn;
+      return dedup(next);
+    });
+  }, [setHospitalsRaw]);
 
   // --- Firebase 초기화 + 실시간 구독 ---
   useEffect(() => {
@@ -62,47 +108,22 @@ export function DataProvider({ children }) {
 
         if (!mounted) return;
 
-        // Firestore ↔ localStorage 동기화 (중복 제거 포함)
-        const dedup = (items) => {
-          const seen = new Map();
-          items.forEach(item => {
-            if (item._id && !seen.has(item._id)) seen.set(item._id, item);
-          });
-          return Array.from(seen.values());
-        };
-
-        // ledger 전용: 비즈니스 키 기반 중복 제거 (거래처+제품+청구기준)
-        const dedupLedger = (items) => {
-          const seen = new Map();
-          items.forEach(item => {
-            const bizKey = `${item['거래처명']}||${item['제품명']}||${item['청구기준']}`;
-            const existing = seen.get(bizKey);
-            if (!existing) {
-              seen.set(bizKey, item);
-            } else {
-              // 더 최근에 수정된 항목 유지 (청구금액이 있는 쪽 우선)
-              if ((item['청구금액'] || 0) > (existing['청구금액'] || 0)) {
-                seen.set(bizKey, item);
-              }
-            }
-          });
-          return Array.from(seen.values());
-        };
-
-        const syncCollection = async (colName, fbData, localKey, isLedger = false) => {
-          const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
+        // --- 동기화: Firestore가 source of truth ---
+        const syncCollection = async (colName, fbData, localKey, isLedgerCol = false) => {
           if (fbData && fbData.length > 0) {
-            // Firestore 데이터를 기본으로 사용 (중복 제거)
-            const result = isLedger ? dedupLedger(fbData) : dedup(fbData);
-            // 중복이 있었으면 Firestore 정리
+            // Firestore 데이터 기준으로 중복 제거
+            const result = isLedgerCol ? dedupLedger(fbData) : dedup(fbData);
+            // Firestore에 중복이 있었으면 정리
             if (result.length < fbData.length) {
               console.warn(`${colName}: ${fbData.length - result.length}건 중복 제거, Firestore 정리`);
               await replaceCollection(colName, result).catch(console.error);
             }
             return result;
-          } else if (localData.length > 0) {
-            // Firestore 비어있음 → localStorage 업로드
-            const cleaned = isLedger ? dedupLedger(localData) : dedup(localData);
+          }
+          // Firestore 비어있음 → localStorage에서 업로드
+          const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
+          if (localData.length > 0) {
+            const cleaned = isLedgerCol ? dedupLedger(localData) : dedup(localData);
             await batchWriteCollection(colName, cleaned).catch(console.error);
             return cleaned;
           }
@@ -120,7 +141,6 @@ export function DataProvider({ children }) {
         // 원가설정 로드
         const fbCostSettings = await fetchCollection(COLLECTIONS.COST_SETTINGS);
         if (fbCostSettings && fbCostSettings.length > 0) {
-          // 단일 문서 (global)
           const global = fbCostSettings.find(d => d._id === 'global');
           if (global) {
             const { _id, ...rest } = global;
@@ -139,14 +159,20 @@ export function DataProvider({ children }) {
           setHospitalCosts(costsMap);
         }
 
-        // 4. 실시간 구독 (Firestore = source of truth, _id 기반 중복 제거)
+        // 초기화 완료 후 구독 시작 (이 시점부터 onSnapshot 콜백 허용)
+        isInitializing.current = false;
+
+        // 4. 실시간 구독 (Firestore = source of truth)
         const unsub1 = subscribeCollection(COLLECTIONS.LEDGER, (data) => {
+          if (isInitializing.current) return; // 초기화 중이면 무시
           if (data.length > 0) setLedger(dedupLedger(data));
         });
         const unsub2 = subscribeCollection(COLLECTIONS.HOSPITALS, (data) => {
+          if (isInitializing.current) return;
           if (data.length > 0) setHospitals(dedup(data));
         });
         const unsub3 = subscribeCollection(COLLECTIONS.MASTER, (data) => {
+          if (isInitializing.current) return;
           if (data.length > 0) setMaster(dedup(data));
         });
 
@@ -155,6 +181,7 @@ export function DataProvider({ children }) {
         console.log('🔥 Firebase 연결 완료');
       } catch (err) {
         console.warn('Firebase 초기화 실패, localStorage 모드로 동작:', err.message);
+        isInitializing.current = false;
         if (mounted) {
           setFirebaseError(err.message);
           setFirebaseReady(true); // 오류여도 앱은 동작하게
@@ -247,10 +274,19 @@ export function DataProvider({ children }) {
         .map(l => l['거래처명'] + '||' + l['제품명'])
     );
 
-    const newEntries = [];
-    hospitals.forEach(h => {
+    // 병원 목록에서 거래처+제품 중복 제거 (같은 조합이 여러 행이면 첫 번째만 사용)
+    const seenHospitalKeys = new Set();
+    const uniqueHospitalEntries = hospitals.filter(h => {
       const key = h['거래처명'] + '||' + h['제품명'];
-      if (!h['거래처명'] || existing.has(key)) return;
+      if (!h['거래처명'] || seenHospitalKeys.has(key)) return false;
+      seenHospitalKeys.add(key);
+      return true;
+    });
+
+    const newEntries = [];
+    uniqueHospitalEntries.forEach(h => {
+      const key = h['거래처명'] + '||' + h['제품명'];
+      if (existing.has(key)) return;
 
       const unitPrice = (h['납품가'] != null && h['납품가'] !== 0) ? h['납품가'] : (h['단가'] || 0);
       const settlementDays = parseInt(h['정산주기']) || 0;
@@ -304,7 +340,7 @@ export function DataProvider({ children }) {
       saveSingleDoc(COLLECTIONS.COST_SETTINGS, 'global', updated).catch(console.error);
       return updated;
     });
-  }, []);
+  }, [setCostSettings]);
 
   const updateHospitalCost = useCallback((hospitalName, fields) => {
     setHospitalCosts(prev => {
@@ -314,7 +350,7 @@ export function DataProvider({ children }) {
       saveSingleDoc(COLLECTIONS.HOSPITAL_COSTS, hospitalName, updated).catch(console.error);
       return { ...prev, [hospitalName]: updated };
     });
-  }, []);
+  }, [setHospitalCosts]);
 
   // --- Monthly Summary 집계 (Firestore 저장) ---
   const buildMonthlySummary = useCallback(() => {
