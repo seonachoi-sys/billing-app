@@ -87,7 +87,7 @@ const HospitalManagement = () => {
 
   // 진료과 + 제품 추가 모달
   const [showAddCombo, setShowAddCombo] = useState(false);
-  const [addCombo, setAddCombo] = useState({ dept: '내과', product: 'CAS' });
+  const [addCombo, setAddCombo] = useState({ dept: '내과', product: 'CAS', doctor: '' });
 
   // 해당 병원의 기존 진료과+제품 조합 목록
   const existingCombos = useMemo(() => {
@@ -110,6 +110,7 @@ const HospitalManagement = () => {
       ...rest,
       '진료과': addCombo.dept,
       '제품명': addCombo.product,
+      '담당의사': addCombo.doctor || currentHospital['담당의사'] || '',
       '업체코드': generateClientCode(hospitals),
     };
     addHospital(newHospital);
@@ -177,7 +178,7 @@ const HospitalManagement = () => {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold text-gray-800">{detail.hospital['거래처명']}</h3>
                 <div className="flex gap-2">
-                  <button onClick={() => { setAddCombo({ dept: '내과', product: 'CAS' }); setShowAddCombo(true); }}
+                  <button onClick={() => { setAddCombo({ dept: '내과', product: 'CAS', doctor: '' }); setShowAddCombo(true); }}
                     className="text-sm text-green-600 hover:text-green-800 px-3 py-1 border border-green-300 rounded hover:bg-green-50">
                     + 진료과/제품 추가
                   </button>
@@ -602,6 +603,13 @@ const HospitalManagement = () => {
                     <option value="EXO">EXO</option>
                   </select>
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">담당의사</label>
+                <input type="text" value={addCombo.doctor}
+                  onChange={e => setAddCombo(p => ({ ...p, doctor: e.target.value }))}
+                  placeholder={currentHospital?.['담당의사'] || '미입력 시 기존 담당의사 유지'}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" />
               </div>
 
               {existingCombos.includes(`${addCombo.dept}||${addCombo.product}`) && (
