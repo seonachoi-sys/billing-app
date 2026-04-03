@@ -167,10 +167,10 @@ const HospitalForm = ({ onClose, editHospital = null }) => {
               </select>
             </div>
             <div>
-              <label className="block text-sm text-gray-600 mb-1">납품가 (VAT포함)</label>
+              <label className="block text-sm text-gray-600 mb-1">납품가 (VAT포함) *</label>
               <input type="number" value={form['납품가']} onChange={set('납품가')}
                 className="w-full border rounded-md px-3 py-2 text-sm"
-                placeholder="13,000" />
+                placeholder="13,000" required />
               {deliveryPrice > 0 && (
                 <p className="text-xs text-gray-400 mt-1">단가 {supply.toLocaleString()}원 + 부가세 {vat.toLocaleString()}원</p>
               )}

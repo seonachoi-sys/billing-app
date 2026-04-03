@@ -80,7 +80,7 @@ export function DataProvider({ children }) {
       const key = h['거래처명'] + '||' + h['제품명'];
       if (!h['거래처명'] || existing.has(key)) return;
 
-      const unitPrice = h['납품가'] || h['단가'] || 0;
+      const unitPrice = (h['납품가'] != null && h['납품가'] !== 0) ? h['납품가'] : (h['단가'] || 0);
       const settlementDays = parseInt(h['정산주기']) || 0;
       const dueDate = calculateDueDate(billingMonth, settlementDays);
 
