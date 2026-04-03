@@ -1,7 +1,12 @@
-import React, { createContext, useContext, useCallback, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useCallback, useEffect, useRef, useState } from 'react';
 import useLocalStorage from '../hooks/useLocalStorage';
 import seedData from '../data';
 import { generateId, isOverdue, calculateDueDate } from '../utils/calculations';
+import {
+  COLLECTIONS, fetchCollection, upsertDoc, updateDocument,
+  deleteDocument, batchWriteCollection, subscribeCollection,
+  migrateToFirestore,
+} from '../services/firestoreService';
 
 const DataContext = createContext();
 
@@ -23,52 +28,135 @@ export function DataProvider({ children }) {
   const [master, setMaster] = useLocalStorage('billing_master', SEED.master);
   const [invoiceTemplate] = useLocalStorage('billing_template', SEED.invoiceTemplate);
   const [notifiedIds, setNotifiedIds] = useLocalStorage('billing_notified', []);
+  const [firebaseReady, setFirebaseReady] = useState(false);
+  const [firebaseError, setFirebaseError] = useState(null);
   const notificationSent = useRef(false);
+  const unsubscribes = useRef([]);
+
+  // --- Firebase 초기화 + 실시간 구독 ---
+  useEffect(() => {
+    let mounted = true;
+
+    async function initFirebase() {
+      try {
+        // 1. localStorage → Firestore 마이그레이션 (최초 1회)
+        await migrateToFirestore();
+
+        // 2. Firestore에서 초기 데이터 로드
+        const [fbLedger, fbHospitals, fbMaster] = await Promise.all([
+          fetchCollection(COLLECTIONS.LEDGER),
+          fetchCollection(COLLECTIONS.HOSPITALS),
+          fetchCollection(COLLECTIONS.MASTER),
+        ]);
+
+        if (!mounted) return;
+
+        // Firestore에 데이터가 있으면 사용, 없으면 localStorage 유지
+        if (fbLedger && fbLedger.length > 0) setLedger(fbLedger);
+        if (fbHospitals && fbHospitals.length > 0) setHospitals(fbHospitals);
+        if (fbMaster && fbMaster.length > 0) setMaster(fbMaster);
+
+        // 3. 실시간 구독 시작 (다른 탭/사용자 변경 감지)
+        const unsub1 = subscribeCollection(COLLECTIONS.LEDGER, (data) => {
+          if (data.length > 0) setLedger(data);
+        });
+        const unsub2 = subscribeCollection(COLLECTIONS.HOSPITALS, (data) => {
+          if (data.length > 0) setHospitals(data);
+        });
+        const unsub3 = subscribeCollection(COLLECTIONS.MASTER, (data) => {
+          if (data.length > 0) setMaster(data);
+        });
+
+        unsubscribes.current = [unsub1, unsub2, unsub3];
+        if (mounted) setFirebaseReady(true);
+        console.log('🔥 Firebase 연결 완료');
+      } catch (err) {
+        console.error('Firebase 초기화 실패, localStorage 모드로 동작:', err);
+        if (mounted) {
+          setFirebaseError(err.message);
+          setFirebaseReady(true); // 오류여도 앱은 동작하게
+        }
+      }
+    }
+
+    initFirebase();
+
+    return () => {
+      mounted = false;
+      unsubscribes.current.forEach(fn => fn && fn());
+    };
+  // eslint-disable-next-line
+  }, []);
+
+  // --- Firestore 동기화 헬퍼 ---
+  const syncToFirestore = useCallback(async (collectionName, id, data, action = 'upsert') => {
+    try {
+      if (action === 'delete') {
+        await deleteDocument(collectionName, id);
+      } else if (action === 'update') {
+        await updateDocument(collectionName, id, data);
+      } else {
+        await upsertDoc(collectionName, id, data);
+      }
+    } catch (err) {
+      console.error(`Firestore 동기화 실패 (${action} ${collectionName}/${id}):`, err);
+    }
+  }, []);
 
   // --- Ledger CRUD ---
   const addLedgerEntry = useCallback((entry) => {
-    setLedger(prev => [...prev, { ...entry, _id: generateId() }]);
-  }, [setLedger]);
+    const newEntry = { ...entry, _id: generateId() };
+    setLedger(prev => [...prev, newEntry]);
+    syncToFirestore(COLLECTIONS.LEDGER, newEntry._id, newEntry);
+  }, [setLedger, syncToFirestore]);
 
   const updateLedgerEntry = useCallback((id, fields) => {
     setLedger(prev => prev.map(item =>
       item._id === id ? { ...item, ...fields } : item
     ));
-  }, [setLedger]);
+    syncToFirestore(COLLECTIONS.LEDGER, id, fields, 'update');
+  }, [setLedger, syncToFirestore]);
 
   const deleteLedgerEntry = useCallback((id) => {
     setLedger(prev => prev.filter(item => item._id !== id));
-  }, [setLedger]);
+    syncToFirestore(COLLECTIONS.LEDGER, id, null, 'delete');
+  }, [setLedger, syncToFirestore]);
 
   // --- Hospital CRUD ---
   const addHospital = useCallback((hospital) => {
-    setHospitals(prev => [...prev, { ...hospital, _id: generateId() }]);
-  }, [setHospitals]);
+    const newHospital = { ...hospital, _id: generateId() };
+    setHospitals(prev => [...prev, newHospital]);
+    syncToFirestore(COLLECTIONS.HOSPITALS, newHospital._id, newHospital);
+  }, [setHospitals, syncToFirestore]);
 
   const updateHospital = useCallback((id, fields) => {
     setHospitals(prev => prev.map(item =>
       item._id === id ? { ...item, ...fields } : item
     ));
-  }, [setHospitals]);
+    syncToFirestore(COLLECTIONS.HOSPITALS, id, fields, 'update');
+  }, [setHospitals, syncToFirestore]);
 
   const deleteHospital = useCallback((id) => {
     setHospitals(prev => prev.filter(item => item._id !== id));
-  }, [setHospitals]);
+    syncToFirestore(COLLECTIONS.HOSPITALS, id, null, 'delete');
+  }, [setHospitals, syncToFirestore]);
 
   // --- Master CRUD ---
   const addContract = useCallback((contract) => {
-    setMaster(prev => [...prev, { ...contract, _id: generateId() }]);
-  }, [setMaster]);
+    const newContract = { ...contract, _id: generateId() };
+    setMaster(prev => [...prev, newContract]);
+    syncToFirestore(COLLECTIONS.MASTER, newContract._id, newContract);
+  }, [setMaster, syncToFirestore]);
 
   const updateContract = useCallback((id, fields) => {
     setMaster(prev => prev.map(item =>
       item._id === id ? { ...item, ...fields } : item
     ));
-  }, [setMaster]);
+    syncToFirestore(COLLECTIONS.MASTER, id, fields, 'update');
+  }, [setMaster, syncToFirestore]);
 
   // --- 월별 자동 생성: 등록된 거래처 기준으로 빈 청구 틀 생성 ---
   const generateMonthlyEntries = useCallback((billingMonth) => {
-    // 이미 해당 월에 생성된 거래처+제품 조합 확인
     const existing = new Set(
       ledger
         .filter(l => l['청구기준'] === billingMonth)
@@ -118,6 +206,8 @@ export function DataProvider({ children }) {
 
     if (newEntries.length > 0) {
       setLedger(prev => [...prev, ...newEntries]);
+      // Firestore에도 일괄 저장
+      batchWriteCollection(COLLECTIONS.LEDGER, newEntries).catch(console.error);
     }
     return newEntries.length;
   }, [ledger, hospitals, setLedger]);
@@ -165,9 +255,18 @@ export function DataProvider({ children }) {
   const importData = useCallback((json) => {
     try {
       const parsed = JSON.parse(json);
-      if (parsed.ledger) setLedger(parsed.ledger);
-      if (parsed.hospitals) setHospitals(parsed.hospitals);
-      if (parsed.master) setMaster(parsed.master);
+      if (parsed.ledger) {
+        setLedger(parsed.ledger);
+        batchWriteCollection(COLLECTIONS.LEDGER, parsed.ledger).catch(console.error);
+      }
+      if (parsed.hospitals) {
+        setHospitals(parsed.hospitals);
+        batchWriteCollection(COLLECTIONS.HOSPITALS, parsed.hospitals).catch(console.error);
+      }
+      if (parsed.master) {
+        setMaster(parsed.master);
+        batchWriteCollection(COLLECTIONS.MASTER, parsed.master).catch(console.error);
+      }
       return true;
     } catch {
       return false;
@@ -179,6 +278,12 @@ export function DataProvider({ children }) {
     setHospitals(SEED.hospitals);
     setMaster(SEED.master);
     setNotifiedIds([]);
+    // Firestore도 시드 데이터로 덮어쓰기
+    batchWriteCollection(COLLECTIONS.LEDGER, SEED.ledger).catch(console.error);
+    batchWriteCollection(COLLECTIONS.HOSPITALS, SEED.hospitals).catch(console.error);
+    batchWriteCollection(COLLECTIONS.MASTER, SEED.master).catch(console.error);
+    // 마이그레이션 플래그 리셋
+    localStorage.removeItem('billing_firebase_migrated');
   }, [setLedger, setHospitals, setMaster, setNotifiedIds]);
 
   const value = {
@@ -188,6 +293,7 @@ export function DataProvider({ children }) {
     addContract, updateContract,
     getHospitalSummary, getOverdueEntries,
     exportData, importData, resetToSeed,
+    firebaseReady, firebaseError,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

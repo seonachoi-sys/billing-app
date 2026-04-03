@@ -34,7 +34,7 @@ async function sendSlack(webhookUrl, text) {
 }
 
 const Settings = () => {
-  const { ledger, hospitals, master, exportData, importData, resetToSeed } = useData();
+  const { ledger, hospitals, master, exportData, importData, resetToSeed, firebaseReady, firebaseError } = useData();
   const fileRef = useRef();
   const [slackUrl, setSlackUrl] = useLocalStorage('billing_slack_url', '');
   const [notifyEmail, setNotifyEmail] = useLocalStorage('billing_notify_email', '');
@@ -233,6 +233,27 @@ const Settings = () => {
           className="w-full bg-amber-500 text-white px-4 py-3 rounded-md text-sm font-medium hover:bg-amber-600">
           지금 알림 발송 (Slack + 이메일)
         </button>
+      </div>
+
+      {/* Firebase 상태 */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-bold text-gray-800 mb-4">Firebase 연동</h3>
+        <div className="flex items-center gap-3 mb-3">
+          <div className={`w-3 h-3 rounded-full ${
+            firebaseError ? 'bg-red-500' : firebaseReady ? 'bg-green-500' : 'bg-yellow-500 animate-pulse'
+          }`} />
+          <span className="text-sm font-medium text-gray-700">
+            {firebaseError ? 'Firebase 연결 실패' : firebaseReady ? 'Firebase 연결됨' : 'Firebase 연결 중...'}
+          </span>
+        </div>
+        {firebaseError && (
+          <p className="text-xs text-red-500 bg-red-50 rounded p-2 mb-3">{firebaseError}</p>
+        )}
+        <div className="text-xs text-gray-500 space-y-1">
+          <p>프로젝트: <span className="font-mono text-gray-600">mgt-task-seona</span></p>
+          <p>컬렉션: <span className="font-mono text-gray-600">billing_ledger, billing_hospitals, billing_master</span></p>
+          <p>모드: {firebaseReady && !firebaseError ? '실시간 동기화 (Firestore + localStorage 캐시)' : 'localStorage 단독 모드'}</p>
+        </div>
       </div>
 
       {/* 데이터 관리 */}
