@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { useData } from '../context/DataContext';
 import { fmt, generateId } from '../utils/calculations';
 import HospitalForm from './forms/HospitalForm';
@@ -521,7 +521,7 @@ function ReconciliationHistory({ items }) {
             <ReferenceLine y={0} stroke="#9ca3af" />
             <Bar dataKey="diff" name="차이" fill="#f59e0b" radius={[4, 4, 0, 0]}>
               {history.map((entry, i) => (
-                <rect key={i} fill={entry.diff > 0 ? '#f59e0b' : entry.diff < 0 ? '#3b82f6' : '#10b981'} />
+                <Cell key={i} fill={entry.diff > 0 ? '#f59e0b' : entry.diff < 0 ? '#3b82f6' : '#10b981'} />
               ))}
             </Bar>
           </BarChart>
