@@ -1,21 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
-import { calculateVAT, calculateDueDate, fmt } from '../utils/calculations';
+import { calculateVAT, fmt } from '../utils/calculations';
 import BillingGuide from './BillingGuide';
 
-// 수량 차이 허용 범위
+// 수량 차이 경고 허용 범위
 const QTY_TOLERANCE = 20;
-
-// 회사수량 vs 병원수량 비교 → 청구 기준 수량 자동 결정
-function resolveQty(companyQty, hospitalQty) {
-  const diff = Math.abs(companyQty - hospitalQty);
-  if (diff <= QTY_TOLERANCE) {
-    // 차이 20 이내 → 병원수량 기준 청구
-    return { billingQty: hospitalQty, status: 'ok', diff };
-  }
-  // 차이 20 초과 → 확인 필요 (일단 병원수량 유지하되 경고)
-  return { billingQty: hospitalQty, status: 'warn', diff };
-}
 
 const MonthlyBilling = () => {
   const { ledger, hospitals, updateLedgerEntry, deleteLedgerEntry, generateMonthlyEntries } = useData();
@@ -41,7 +30,7 @@ const MonthlyBilling = () => {
     const qtyWarnings = monthItems.filter(i => {
       const c = parseInt(i['당월발생']) || 0;
       const h = parseInt(i['병원수량']) || 0;
-      return c > 0 && h > 0 && resolveQty(c, h).status === 'warn';
+      return c > 0 && h > 0 && Math.abs(c - h) > QTY_TOLERANCE;
     }).length;
     return { total, confirmed, invoiced, count: monthItems.length, qtyWarnings };
   }, [monthItems]);
@@ -59,14 +48,10 @@ const MonthlyBilling = () => {
   // 수량 → 금액 재계산 공통 함수
   const recalcAmount = (item, overrides = {}) => {
     const merged = { ...item, ...overrides };
-    const companyQty = parseInt(merged['당월발생']) || 0;
     const hospitalQty = parseInt(merged['병원수량']) || 0;
-    const carryover = parseInt(merged['차월이월']) || 0;
-    const prevMonth = parseInt(merged['전월반영']) || 0;
 
-    // 회사 vs 병원 비교 → 청구 기준 수량 결정
-    const { billingQty } = resolveQty(companyQty, hospitalQty);
-    const finalCount = billingQty - carryover + prevMonth;
+    // 병원 회신 건수 기준으로 최종 청구
+    const finalCount = hospitalQty;
     const unitPrice = merged['단가'] || 0;  // VAT 포함 단가 (납품가)
     const totalAmount = finalCount * unitPrice;
     const { supply, vat } = calculateVAT(totalAmount);  // 총액에서 공급가/세액 분리
@@ -90,18 +75,6 @@ const MonthlyBilling = () => {
   // 병원수량 변경
   const handleQtyChange = (item, newQty) => {
     const updates = recalcAmount(item, { '병원수량': String(parseInt(newQty) || 0) });
-    updateLedgerEntry(item._id, updates);
-  };
-
-  // 차월이월 변경
-  const handleCarryoverChange = (item, val) => {
-    const updates = recalcAmount(item, { '차월이월': String(parseInt(val) || 0) });
-    updateLedgerEntry(item._id, updates);
-  };
-
-  // 전월반영 변경
-  const handlePrevMonthChange = (item, val) => {
-    const updates = recalcAmount(item, { '전월반영': String(parseInt(val) || 0) });
     updateLedgerEntry(item._id, updates);
   };
 
@@ -262,7 +235,7 @@ const MonthlyBilling = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  {['', '거래처명', '진료과', '제품', '회사수량', '병원수량', '차이', '차월이월', '전월반영', '최종건수', '단가', '청구금액', '수량확정', '계산서', '상태'].map(h => (
+                  {['', '거래처명', '진료과', '제품', '회사수량', '병원수량', '차이', '최종건수', '단가', '청구금액', '수량확정', '계산서', '상태'].map(h => (
                     <th key={h} className="table-header px-3 py-3">{h}</th>
                   ))}
                 </tr>
@@ -272,7 +245,6 @@ const MonthlyBilling = () => {
                   const isLocked = item['채권상태'] === '청구확정' || item['채권상태'] === '완납';
                   const companyQty = parseInt(item['당월발생']) || 0;
                   const hospitalQty = parseInt(item['병원수량']) || 0;
-                  const qtyResult = resolveQty(companyQty, hospitalQty);
                   const bothEntered = companyQty > 0 && hospitalQty > 0;
                   const hospital = hospitals.find(h => h['거래처명'] === item['거래처명']);
                   const customSteps = hospital?.['청구단계목록'];
@@ -286,7 +258,7 @@ const MonthlyBilling = () => {
                     <React.Fragment key={item._id}>
                     <tr className={`hover:bg-gray-50 ${
                       item['채권상태'] === '청구확정' ? 'bg-blue-50' :
-                      bothEntered && qtyResult.status === 'warn' ? 'bg-orange-50' :
+                      bothEntered && Math.abs(companyQty - hospitalQty) > QTY_TOLERANCE ? 'bg-orange-50' :
                       item['최종건수'] === 0 ? 'bg-yellow-50' : ''
                     }`}>
                       <td className="table-cell px-2">
@@ -326,46 +298,25 @@ const MonthlyBilling = () => {
                           }`} />
                       </td>
 
-                      {/* 차이 표시 */}
+                      {/* 차이 (회사 - 병원) */}
                       <td className="table-cell text-center text-xs">
-                        {bothEntered ? (
-                          <span className={`px-1.5 py-0.5 rounded-full ${
-                            qtyResult.status === 'ok'
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-orange-100 text-orange-700 font-semibold'
-                          }`}>
-                            {qtyResult.diff === 0 ? '일치' :
-                             qtyResult.status === 'ok' ? `±${qtyResult.diff}` :
-                             `±${qtyResult.diff} ⚠`}
-                          </span>
-                        ) : (
+                        {bothEntered ? (() => {
+                          const diff = companyQty - hospitalQty;
+                          return (
+                            <span className={`px-1.5 py-0.5 rounded-full ${
+                              diff === 0 ? 'bg-green-100 text-green-700' :
+                              Math.abs(diff) <= QTY_TOLERANCE ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-orange-100 text-orange-700 font-semibold'
+                            }`}>
+                              {diff === 0 ? '일치' : diff > 0 ? `+${diff}` : `${diff}`}
+                            </span>
+                          );
+                        })() : (
                           <span className="text-gray-300">-</span>
                         )}
                       </td>
 
-                      {/* 차월이월 */}
-                      <td className="table-cell">
-                        <input type="number" min="0"
-                          value={item['차월이월'] || ''}
-                          onChange={e => handleCarryoverChange(item, e.target.value)}
-                          disabled={isLocked}
-                          className={`w-14 border rounded px-2 py-1 text-sm text-right ${
-                            isLocked ? 'bg-gray-100 text-gray-400' : 'border-gray-300'
-                          }`} />
-                      </td>
-
-                      {/* 전월반영 */}
-                      <td className="table-cell">
-                        <input type="number" min="0"
-                          value={item['전월반영'] || ''}
-                          onChange={e => handlePrevMonthChange(item, e.target.value)}
-                          disabled={isLocked}
-                          className={`w-14 border rounded px-2 py-1 text-sm text-right ${
-                            isLocked ? 'bg-gray-100 text-gray-400' : 'border-gray-300'
-                          }`} />
-                      </td>
-
-                      {/* 최종건수 (자동) */}
+                      {/* 최종건수 (= 병원수량) */}
                       <td className="table-cell text-right text-sm font-semibold">
                         {item['최종건수']}
                       </td>
@@ -433,7 +384,7 @@ const MonthlyBilling = () => {
                     </tr>
                     {isExpanded && (
                       <tr>
-                        <td colSpan={15} className="p-0 bg-gray-50 border-b border-blue-100">
+                        <td colSpan={13} className="p-0 bg-gray-50 border-b border-blue-100">
                           <BillingGuide entry={item} />
                         </td>
                       </tr>

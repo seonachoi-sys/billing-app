@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { useData } from '../context/DataContext';
 import { fmt, generateId } from '../utils/calculations';
 import HospitalForm from './forms/HospitalForm';
@@ -395,6 +396,9 @@ const HospitalManagement = () => {
               )}
             </div>
 
+            {/* 건수 대사 이력 */}
+            <ReconciliationHistory items={detail.items} hospitalName={detail.hospital['거래처명']} />
+
             {/* 매출/미수금 */}
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-white rounded-lg shadow p-5">
@@ -457,5 +461,108 @@ const HospitalManagement = () => {
     </div>
   );
 };
+
+// 건수 대사 이력 컴포넌트
+function ReconciliationHistory({ items }) {
+  const [showChart, setShowChart] = useState(false);
+
+  const history = useMemo(() => {
+    return items
+      .filter(i => {
+        const c = parseInt(i['당월발생']) || 0;
+        const h = parseInt(i['병원수량']) || 0;
+        return c > 0 || h > 0;
+      })
+      .map(i => {
+        const company = parseInt(i['당월발생']) || 0;
+        const hospital = parseInt(i['병원수량']) || 0;
+        const diff = company - hospital;
+        const diffRate = hospital > 0 ? ((diff / hospital) * 100).toFixed(1) : '0.0';
+        return {
+          month: i['청구기준'],
+          product: i['제품명'],
+          company,
+          hospital,
+          diff,
+          diffRate: parseFloat(diffRate),
+          hasDiff: diff !== 0,
+        };
+      })
+      .sort((a, b) => a.month.localeCompare(b.month));
+  }, [items]);
+
+  const totalDiff = history.reduce((s, h) => s + h.diff, 0);
+  const diffMonths = history.filter(h => h.hasDiff).length;
+
+  if (history.length === 0) return null;
+
+  return (
+    <div className="bg-white rounded-lg shadow p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="text-sm font-semibold text-gray-700">
+          건수 대사 이력
+          {diffMonths > 0 && (
+            <span className="ml-2 text-xs font-normal text-orange-500">차이 {diffMonths}건 · 누적 {totalDiff > 0 ? '+' : ''}{totalDiff}</span>
+          )}
+        </h4>
+        <button onClick={() => setShowChart(prev => !prev)}
+          className="text-xs text-blue-500 hover:text-blue-700 px-2 py-1 border rounded">
+          {showChart ? '테이블' : '차트'}
+        </button>
+      </div>
+
+      {showChart ? (
+        <ResponsiveContainer width="100%" height={200}>
+          <BarChart data={history}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip formatter={(v, name) => name === '차이' ? `${v > 0 ? '+' : ''}${v}` : v} />
+            <ReferenceLine y={0} stroke="#9ca3af" />
+            <Bar dataKey="diff" name="차이" fill="#f59e0b" radius={[4, 4, 0, 0]}>
+              {history.map((entry, i) => (
+                <rect key={i} fill={entry.diff > 0 ? '#f59e0b' : entry.diff < 0 ? '#3b82f6' : '#10b981'} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      ) : (
+        <div className="overflow-x-auto max-h-[240px] overflow-y-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50 sticky top-0">
+              <tr>
+                {['청구월', '제품', '회사건수', '병원건수', '차이', '차이율'].map(h => (
+                  <th key={h} className="table-header px-3 py-2 text-xs">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {history.map((row, i) => (
+                <tr key={i} className={row.hasDiff ? 'bg-yellow-50' : 'hover:bg-gray-50'}>
+                  <td className="table-cell text-xs">{row.month}</td>
+                  <td className="table-cell text-xs">
+                    <span className={`badge ${row.product === 'CAS' ? 'badge-blue' : 'badge-yellow'}`}>{row.product}</span>
+                  </td>
+                  <td className="table-cell text-right text-xs">{fmt(row.company)}</td>
+                  <td className="table-cell text-right text-xs">{fmt(row.hospital)}</td>
+                  <td className={`table-cell text-right text-xs font-medium ${
+                    row.diff > 0 ? 'text-orange-600' : row.diff < 0 ? 'text-blue-600' : 'text-green-600'
+                  }`}>
+                    {row.diff === 0 ? '0' : row.diff > 0 ? `+${row.diff}` : row.diff}
+                  </td>
+                  <td className={`table-cell text-right text-xs ${
+                    Math.abs(row.diffRate) > 5 ? 'text-red-500 font-medium' : 'text-gray-500'
+                  }`}>
+                    {row.diffRate > 0 ? '+' : ''}{row.diffRate}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default HospitalManagement;

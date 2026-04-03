@@ -350,8 +350,80 @@ const Statistics = () => {
           </table>
         </div>
       </div>
+      {/* 병원별 건수 대사 요약 */}
+      <ReconciliationSummary filtered={filtered} />
     </div>
   );
 };
+
+// 병원별 건수 대사 요약
+function ReconciliationSummary({ filtered }) {
+  const reconData = useMemo(() => {
+    const map = {};
+    filtered.forEach(item => {
+      const name = item['거래처명'];
+      const c = parseInt(item['당월발생']) || 0;
+      const h = parseInt(item['병원수량']) || 0;
+      if (!name || (c === 0 && h === 0)) return;
+      if (!map[name]) map[name] = { name, totalCompany: 0, totalHospital: 0, months: 0, diffMonths: 0 };
+      map[name].totalCompany += c;
+      map[name].totalHospital += h;
+      map[name].months += 1;
+      if (c !== h) map[name].diffMonths += 1;
+    });
+    return Object.values(map)
+      .map(r => ({
+        ...r,
+        totalDiff: r.totalCompany - r.totalHospital,
+        diffRate: r.totalHospital > 0 ? ((r.totalCompany - r.totalHospital) / r.totalHospital * 100).toFixed(1) : '0.0',
+      }))
+      .filter(r => r.totalDiff !== 0)
+      .sort((a, b) => Math.abs(b.totalDiff) - Math.abs(a.totalDiff));
+  }, [filtered]);
+
+  if (reconData.length === 0) return null;
+
+  return (
+    <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="px-5 py-3 border-b">
+        <h3 className="text-sm font-semibold text-gray-700">
+          병원별 건수 대사 요약
+          <span className="ml-2 text-xs font-normal text-orange-500">차이 발생 {reconData.length}곳</span>
+        </h3>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              {['거래처명', '회사 합계', '병원 합계', '누적 차이', '차이율', '차이 발생월'].map(h => (
+                <th key={h} className="table-header px-4 py-3">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {reconData.map((r, i) => (
+              <tr key={i} className={Math.abs(r.totalDiff) > 10 ? 'bg-orange-50' : 'hover:bg-gray-50'}>
+                <td className="table-cell font-medium">{r.name}</td>
+                <td className="table-cell text-right">{fmt(r.totalCompany)}건</td>
+                <td className="table-cell text-right">{fmt(r.totalHospital)}건</td>
+                <td className={`table-cell text-right font-medium ${
+                  r.totalDiff > 0 ? 'text-orange-600' : 'text-blue-600'
+                }`}>
+                  {r.totalDiff > 0 ? '+' : ''}{r.totalDiff}
+                </td>
+                <td className={`table-cell text-right ${
+                  Math.abs(parseFloat(r.diffRate)) > 5 ? 'text-red-500 font-medium' : 'text-gray-500'
+                }`}>
+                  {parseFloat(r.diffRate) > 0 ? '+' : ''}{r.diffRate}%
+                </td>
+                <td className="table-cell text-right text-gray-500">{r.diffMonths}/{r.months}개월</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 export default Statistics;
