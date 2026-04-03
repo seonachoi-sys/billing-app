@@ -67,9 +67,9 @@ const MonthlyBilling = () => {
     // 회사 vs 병원 비교 → 청구 기준 수량 결정
     const { billingQty } = resolveQty(companyQty, hospitalQty);
     const finalCount = billingQty - carryover + prevMonth;
-    const unitPrice = merged['단가'] || 0;
+    const unitPrice = merged['단가'] || 0;  // VAT 포함 단가 (납품가)
     const totalAmount = finalCount * unitPrice;
-    const { supply, vat } = calculateVAT(totalAmount);
+    const { supply, vat } = calculateVAT(totalAmount);  // 총액에서 공급가/세액 분리
 
     return {
       ...overrides,

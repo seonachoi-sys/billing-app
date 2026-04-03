@@ -79,7 +79,7 @@ function parseLedger() {
 
     // 숫자 변환
     item['최종건수'] = toNumber(item['최종건수']);
-    item['단가'] = toNumber(item['단가']);
+    item['단가'] = toNumber(item['단가']);  // CSV 원본 단가 (공급가 기준, 추후 납품가로 교체)
     // 국세청 홈택스 기준 부가세 계산
     const rawTotal = toNumber(item['청구금액']);
     const supply = Math.round(rawTotal / 1.1);
@@ -167,6 +167,14 @@ const ledger = parseLedger();
 const hospitals = parseHospitals(ledger);
 const master = parseMaster();
 const invoiceTemplate = parseInvoiceTemplate();
+
+// 원장의 단가를 납품가(VAT포함)로 교체 — 청구금액 = 납품가 × 수량
+ledger.forEach(item => {
+  const hospital = hospitals.find(h => h['거래처명'] === item['거래처명'] && h['제품명'] === item['제품명']);
+  if (hospital && hospital['납품가']) {
+    item['단가'] = hospital['납품가'];
+  }
+});
 
 const output = `// 이 파일은 자동 생성됩니다. 직접 수정하지 마세요.
 // 생성: node gen-data.js (${new Date().toISOString().slice(0, 10)})
