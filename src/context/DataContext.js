@@ -59,21 +59,59 @@ export function DataProvider({ children }) {
 
         if (!mounted) return;
 
-        // Firestore에 데이터가 있으면 사용, 없으면 localStorage 유지
-        if (fbLedger && fbLedger.length > 0) setLedger(fbLedger);
-        if (fbHospitals && fbHospitals.length > 0) setHospitals(fbHospitals);
-        if (fbMaster && fbMaster.length > 0) setMaster(fbMaster);
+        // Firestore ↔ localStorage 양방향 동기화
+        // Firestore가 비어 있으면 localStorage 데이터를 업로드
+        const syncCollectionUp = async (colName, fbData, localKey) => {
+          const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
+          if (fbData && fbData.length > 0) {
+            // Firestore에 있지만 localStorage에 없는 항목 보충
+            const remoteIds = new Set(fbData.map(d => d._id));
+            const missing = localData.filter(d => d._id && !remoteIds.has(d._id));
+            if (missing.length > 0) {
+              await batchWriteCollection(colName, missing).catch(console.error);
+              return [...fbData, ...missing];
+            }
+            return fbData;
+          } else if (localData.length > 0) {
+            // Firestore 비어있음 → localStorage 데이터 전체 업로드
+            await batchWriteCollection(colName, localData).catch(console.error);
+            return localData;
+          }
+          return fbData || [];
+        };
+
+        const syncedLedger = await syncCollectionUp(COLLECTIONS.LEDGER, fbLedger, 'billing_ledger');
+        const syncedHospitals = await syncCollectionUp(COLLECTIONS.HOSPITALS, fbHospitals, 'billing_hospitals');
+        const syncedMaster = await syncCollectionUp(COLLECTIONS.MASTER, fbMaster, 'billing_master');
+
+        if (syncedLedger.length > 0) setLedger(syncedLedger);
+        if (syncedHospitals.length > 0) setHospitals(syncedHospitals);
+        if (syncedMaster.length > 0) setMaster(syncedMaster);
 
         // 4. 실시간 구독 시작 (다른 탭/사용자 변경 감지)
-        const unsub1 = subscribeCollection(COLLECTIONS.LEDGER, (data) => {
-          if (data.length > 0) setLedger(data);
-        });
-        const unsub2 = subscribeCollection(COLLECTIONS.HOSPITALS, (data) => {
-          if (data.length > 0) setHospitals(data);
-        });
-        const unsub3 = subscribeCollection(COLLECTIONS.MASTER, (data) => {
-          if (data.length > 0) setMaster(data);
-        });
+        // 안전장치: Firestore 데이터가 로컬보다 적으면 병합 (데이터 손실 방지)
+        const safeMerge = (setter, colName) => (data) => {
+          if (data.length === 0) return;
+          setter(prev => {
+            if (data.length >= prev.length) return data;
+            // Firestore가 로컬보다 적음 → 병합 후 누락분 업로드
+            const remoteMap = new Map(data.map(d => [d._id, d]));
+            const localIds = new Set(prev.map(p => p._id));
+            const remoteOnly = data.filter(d => !localIds.has(d._id));
+            const merged = prev.map(p => remoteMap.has(p._id) ? remoteMap.get(p._id) : p);
+            const result = [...merged, ...remoteOnly];
+            // 누락된 항목 Firestore에 업로드
+            const missing = result.filter(item => !remoteMap.has(item._id));
+            if (missing.length > 0) {
+              batchWriteCollection(colName, missing).catch(console.error);
+            }
+            return result;
+          });
+        };
+
+        const unsub1 = subscribeCollection(COLLECTIONS.LEDGER, safeMerge(setLedger, COLLECTIONS.LEDGER));
+        const unsub2 = subscribeCollection(COLLECTIONS.HOSPITALS, safeMerge(setHospitals, COLLECTIONS.HOSPITALS));
+        const unsub3 = subscribeCollection(COLLECTIONS.MASTER, safeMerge(setMaster, COLLECTIONS.MASTER));
 
         unsubscribes.current = [unsub1, unsub2, unsub3];
         if (mounted) setFirebaseReady(true);
