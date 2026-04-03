@@ -52,30 +52,36 @@ const HospitalManagement = () => {
     }
   };
 
-  // 동일 병원에 다른 제품 추가
-  const handleAddProduct = (hospital) => {
-    const currentProduct = hospital['제품명'];
-    const otherProduct = currentProduct === 'CAS' ? 'EXO' : 'CAS';
+  // 진료과 + 제품 추가 모달
+  const [showAddCombo, setShowAddCombo] = useState(false);
+  const [addCombo, setAddCombo] = useState({ dept: '내과', product: 'CAS' });
 
-    // 이미 해당 제품이 등록되어 있는지 확인
-    const exists = hospitals.some(
-      h => h['거래처명'] === hospital['거래처명'] && h['제품명'] === otherProduct
-    );
-    if (exists) {
-      alert(`${hospital['거래처명']}에 ${otherProduct} 제품이 이미 등록되어 있습니다.`);
+  // 해당 병원의 기존 진료과+제품 조합 목록
+  const existingCombos = useMemo(() => {
+    if (!currentHospital) return [];
+    return hospitals
+      .filter(h => h['거래처명'] === currentHospital['거래처명'])
+      .map(h => `${h['진료과']}||${h['제품명']}`);
+  }, [hospitals, currentHospital]);
+
+  const handleAddComboSubmit = () => {
+    if (!currentHospital) return;
+    const key = `${addCombo.dept}||${addCombo.product}`;
+    if (existingCombos.includes(key)) {
+      alert(`${currentHospital['거래처명']}에 ${addCombo.dept} · ${addCombo.product} 조합이 이미 등록되어 있습니다.`);
       return;
     }
 
-    if (!window.confirm(`${hospital['거래처명']}에 ${otherProduct} 제품을 추가하시겠습니까?\n기존 병원 정보가 그대로 복사됩니다.`)) return;
-
-    const { _id, ...rest } = hospital;
+    const { _id, ...rest } = currentHospital;
     const newHospital = {
       ...rest,
-      '제품명': otherProduct,
+      '진료과': addCombo.dept,
+      '제품명': addCombo.product,
       '업체코드': generateClientCode(hospitals),
     };
     addHospital(newHospital);
-    alert(`${hospital['거래처명']} — ${otherProduct} 제품이 추가되었습니다.`);
+    setShowAddCombo(false);
+    alert(`${currentHospital['거래처명']} — ${addCombo.dept} · ${addCombo.product} 추가 완료`);
   };
 
   return (
@@ -132,9 +138,9 @@ const HospitalManagement = () => {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold text-gray-800">{detail.hospital['거래처명']}</h3>
                 <div className="flex gap-2">
-                  <button onClick={() => handleAddProduct(detail.hospital)}
+                  <button onClick={() => { setAddCombo({ dept: '내과', product: 'CAS' }); setShowAddCombo(true); }}
                     className="text-sm text-green-600 hover:text-green-800 px-3 py-1 border border-green-300 rounded hover:bg-green-50">
-                    + {detail.hospital['제품명'] === 'CAS' ? 'EXO' : 'CAS'} 추가
+                    + 진료과/제품 추가
                   </button>
                   <button onClick={() => handleEdit(detail.hospital)}
                     className="text-sm text-blue-500 hover:text-blue-700 px-3 py-1 border rounded">수정</button>
@@ -487,6 +493,73 @@ const HospitalManagement = () => {
           onClose={() => { setShowForm(false); setEditHospital(null); }}
           editHospital={editHospital}
         />
+      )}
+
+      {/* 진료과 + 제품 추가 모달 */}
+      {showAddCombo && currentHospital && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <h3 className="text-base font-bold text-gray-800">진료과 / 제품 추가</h3>
+              <button onClick={() => setShowAddCombo(false)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600">
+                <span className="font-semibold">{currentHospital['거래처명']}</span>에 조합을 추가합니다.
+              </p>
+
+              {/* 기존 등록 현황 */}
+              <div>
+                <p className="text-xs text-gray-500 mb-1.5">등록된 조합</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {existingCombos.map(c => {
+                    const [dept, prod] = c.split('||');
+                    return (
+                      <span key={c} className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                        {dept} · {prod}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">진료과</label>
+                  <select value={addCombo.dept} onChange={e => setAddCombo(p => ({ ...p, dept: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm">
+                    <option value="내과">내과</option>
+                    <option value="안과">안과</option>
+                    <option value="외과">외과</option>
+                    <option value="기타">기타</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">제품</label>
+                  <select value={addCombo.product} onChange={e => setAddCombo(p => ({ ...p, product: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm">
+                    <option value="CAS">CAS</option>
+                    <option value="EXO">EXO</option>
+                  </select>
+                </div>
+              </div>
+
+              {existingCombos.includes(`${addCombo.dept}||${addCombo.product}`) && (
+                <p className="text-xs text-red-500">이미 등록된 조합입니다.</p>
+              )}
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button onClick={() => setShowAddCombo(false)}
+                  className="px-4 py-2 border rounded-md text-sm text-gray-600 hover:bg-gray-50">취소</button>
+                <button onClick={handleAddComboSubmit}
+                  disabled={existingCombos.includes(`${addCombo.dept}||${addCombo.product}`)}
+                  className="px-4 py-2 bg-green-500 text-white rounded-md text-sm font-medium hover:bg-green-600 disabled:opacity-40 disabled:cursor-not-allowed">
+                  추가
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
