@@ -15,6 +15,9 @@ export const COLLECTIONS = {
   MASTER: 'billing_master',
   TEMPLATE: 'billing_template',
   EMAIL_HISTORY: 'billing_email_history',
+  COST_SETTINGS: 'billing_cost_settings',
+  HOSPITAL_COSTS: 'billing_hospital_costs',
+  MONTHLY_SUMMARY: 'billing_monthly_summary',
 };
 
 // --- 범용 CRUD ---

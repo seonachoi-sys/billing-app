@@ -2,10 +2,11 @@ import React, { createContext, useContext, useCallback, useEffect, useRef, useSt
 import useLocalStorage from '../hooks/useLocalStorage';
 import seedData from '../data';
 import { generateId, isOverdue, calculateDueDate } from '../utils/calculations';
+import { DEFAULT_COST_SETTINGS, DEFAULT_HOSPITAL_COST } from '../utils/bepCalculations';
 import {
   COLLECTIONS, fetchCollection, upsertDoc, updateDocument,
   deleteDocument, batchWriteCollection, replaceCollection,
-  subscribeCollection, migrateToFirestore,
+  subscribeCollection, migrateToFirestore, saveSingleDoc,
 } from '../services/firestoreService';
 
 const DataContext = createContext();
@@ -28,6 +29,8 @@ export function DataProvider({ children }) {
   const [master, setMaster] = useLocalStorage('billing_master', SEED.master);
   const [invoiceTemplate] = useLocalStorage('billing_template', SEED.invoiceTemplate);
   const [notifiedIds, setNotifiedIds] = useLocalStorage('billing_notified', []);
+  const [costSettings, setCostSettings] = useLocalStorage('billing_cost_settings', { ...DEFAULT_COST_SETTINGS });
+  const [hospitalCosts, setHospitalCosts] = useLocalStorage('billing_hospital_costs', {});
   const [firebaseReady, setFirebaseReady] = useState(false);
   const [firebaseError, setFirebaseError] = useState(null);
   const notificationSent = useRef(false);
@@ -114,6 +117,28 @@ export function DataProvider({ children }) {
         if (syncedHospitals.length > 0) setHospitals(syncedHospitals);
         if (syncedMaster.length > 0) setMaster(syncedMaster);
 
+        // 원가설정 로드
+        const fbCostSettings = await fetchCollection(COLLECTIONS.COST_SETTINGS);
+        if (fbCostSettings && fbCostSettings.length > 0) {
+          // 단일 문서 (global)
+          const global = fbCostSettings.find(d => d._id === 'global');
+          if (global) {
+            const { _id, ...rest } = global;
+            setCostSettings(prev => ({ ...prev, ...rest }));
+          }
+        }
+
+        // 병원별 원가설정 로드
+        const fbHospitalCosts = await fetchCollection(COLLECTIONS.HOSPITAL_COSTS);
+        if (fbHospitalCosts && fbHospitalCosts.length > 0) {
+          const costsMap = {};
+          fbHospitalCosts.forEach(doc => {
+            const { _id, ...rest } = doc;
+            costsMap[_id] = rest;
+          });
+          setHospitalCosts(costsMap);
+        }
+
         // 4. 실시간 구독 (Firestore = source of truth, _id 기반 중복 제거)
         const unsub1 = subscribeCollection(COLLECTIONS.LEDGER, (data) => {
           if (data.length > 0) setLedger(dedupLedger(data));
@@ -160,7 +185,7 @@ export function DataProvider({ children }) {
     } catch (err) {
       console.error(`Firestore 동기화 실패 (${action} ${collectionName}/${id}):`, err);
     }
-  }, []);
+  }, [firebaseError]);
 
   // --- Ledger CRUD ---
   const addLedgerEntry = useCallback((entry) => {
@@ -271,6 +296,54 @@ export function DataProvider({ children }) {
     return newEntries.length;
   }, [ledger, hospitals, setLedger]);
 
+  // --- Cost Settings CRUD ---
+  const updateCostSettings = useCallback((fields) => {
+    setCostSettings(prev => {
+      const updated = { ...prev, ...fields };
+      // Firestore에 저장 (단일 문서)
+      saveSingleDoc(COLLECTIONS.COST_SETTINGS, 'global', updated).catch(console.error);
+      return updated;
+    });
+  }, []);
+
+  const updateHospitalCost = useCallback((hospitalName, fields) => {
+    setHospitalCosts(prev => {
+      const current = prev[hospitalName] || { ...DEFAULT_HOSPITAL_COST };
+      const updated = { ...current, ...fields };
+      // Firestore에 저장 (병원명을 doc ID로)
+      saveSingleDoc(COLLECTIONS.HOSPITAL_COSTS, hospitalName, updated).catch(console.error);
+      return { ...prev, [hospitalName]: updated };
+    });
+  }, []);
+
+  // --- Monthly Summary 집계 (Firestore 저장) ---
+  const buildMonthlySummary = useCallback(() => {
+    const summary = {};
+    ledger.forEach(entry => {
+      const month = entry['청구기준'];
+      const name = entry['거래처명'];
+      if (!month || !name) return;
+      const key = `${month}__${name}`;
+      if (!summary[key]) {
+        summary[key] = { month, hospitalName: name, revenue: 0, cases: 0, outstanding: 0 };
+      }
+      summary[key].revenue += entry['청구금액'] || 0;
+      summary[key].cases += entry['최종건수'] || 0;
+      summary[key].outstanding += entry['미수금'] || 0;
+    });
+    return Object.values(summary);
+  }, [ledger]);
+
+  const syncMonthlySummary = useCallback(async () => {
+    if (firebaseError) return;
+    const summaryData = buildMonthlySummary();
+    const items = summaryData.map(s => ({
+      ...s,
+      _id: `${s.month}__${s.hospitalName}`,
+    }));
+    await replaceCollection(COLLECTIONS.MONTHLY_SUMMARY, items).catch(console.error);
+  }, [buildMonthlySummary, firebaseError]);
+
   // --- Computed ---
   const getHospitalSummary = useCallback((hospitalName) => {
     const items = ledger.filter(l => l['거래처명'] === hospitalName);
@@ -337,12 +410,16 @@ export function DataProvider({ children }) {
     setHospitals(SEED.hospitals);
     setMaster(SEED.master);
     setNotifiedIds([]);
+    setCostSettings({ ...DEFAULT_COST_SETTINGS });
+    setHospitalCosts({});
     // Firestore: 기존 문서 전부 삭제 후 시드 데이터로 교체
     replaceCollection(COLLECTIONS.LEDGER, SEED.ledger).catch(console.error);
     replaceCollection(COLLECTIONS.HOSPITALS, SEED.hospitals).catch(console.error);
     replaceCollection(COLLECTIONS.MASTER, SEED.master).catch(console.error);
+    replaceCollection(COLLECTIONS.COST_SETTINGS, []).catch(console.error);
+    replaceCollection(COLLECTIONS.HOSPITAL_COSTS, []).catch(console.error);
     localStorage.removeItem('billing_firebase_migrated');
-  }, [setLedger, setHospitals, setMaster, setNotifiedIds]);
+  }, [setLedger, setHospitals, setMaster, setNotifiedIds, setCostSettings, setHospitalCosts]);
 
   const value = {
     ledger, hospitals, master, invoiceTemplate,
@@ -352,6 +429,9 @@ export function DataProvider({ children }) {
     getHospitalSummary, getOverdueEntries,
     exportData, importData, resetToSeed,
     firebaseReady, firebaseError,
+    costSettings, hospitalCosts,
+    updateCostSettings, updateHospitalCost,
+    buildMonthlySummary, syncMonthlySummary,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

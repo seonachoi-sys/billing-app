@@ -1,9 +1,6 @@
 import React from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { useData } from '../context/DataContext';
 import { fmt, calculateDday, isOverdue } from '../utils/calculations';
-
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
 const Dashboard = () => {
   const { ledger } = useData();
@@ -16,14 +13,6 @@ const Dashboard = () => {
   const collectionRate = totalBilled > 0
     ? ((1 - totalOutstanding / totalBilled) * 100).toFixed(1)
     : '0.0';
-
-  // --- 채권상태 분포 ---
-  const statusMap = {};
-  ledger.forEach(item => {
-    const s = item['채권상태'] || '기타';
-    statusMap[s] = (statusMap[s] || 0) + 1;
-  });
-  const statusData = Object.entries(statusMap).map(([name, value]) => ({ name, value }));
 
   // --- 월별 예상 입금액 ---
   const dueMap = {};
@@ -42,20 +31,6 @@ const Dashboard = () => {
     .filter(i => i['미수금'] > 0 && i['채권상태'] !== '완납' && i['입금예정일'])
     .map(i => ({ ...i, dday: calculateDday(i['입금예정일']) }))
     .sort((a, b) => (b.dday || 0) - (a.dday || 0));
-
-  // --- 연체 금액 구간별 분포 ---
-  const agingBuckets = { '30일 이내': 0, '31~60일': 0, '61~90일': 0, '90일 초과': 0 };
-  overdueItems.forEach(item => {
-    const dday = calculateDday(item['입금예정일']) || 0;
-    const amt = item['미수금'] || 0;
-    if (dday <= 30) agingBuckets['30일 이내'] += amt;
-    else if (dday <= 60) agingBuckets['31~60일'] += amt;
-    else if (dday <= 90) agingBuckets['61~90일'] += amt;
-    else agingBuckets['90일 초과'] += amt;
-  });
-  const agingData = Object.entries(agingBuckets)
-    .filter(([, v]) => v > 0)
-    .map(([name, value]) => ({ name, value }));
 
   return (
     <div className="space-y-6">
@@ -85,37 +60,6 @@ const Dashboard = () => {
             {overdueItems.length}<span className="text-sm font-normal text-gray-400">건</span>
           </p>
         </div>
-      </div>
-
-      {/* 채권상태 + 연체 구간 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow p-5">
-          <h3 className="text-sm font-semibold text-gray-700 mb-4">채권상태 분포</h3>
-          <ResponsiveContainer width="100%" height={280}>
-            <PieChart>
-              <Pie data={statusData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90}
-                label={({ name, value }) => `${name} ${value}`}>
-                {statusData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-
-        {agingData.length > 0 && (
-          <div className="bg-white rounded-lg shadow p-5">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4">연체 구간별 미수금</h3>
-            <ResponsiveContainer width="100%" height={280}>
-              <PieChart>
-                <Pie data={agingData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                  {agingData.map((_, i) => <Cell key={i} fill={['#f59e0b', '#f97316', '#ef4444', '#991b1b'][i]} />)}
-                </Pie>
-                <Tooltip formatter={v => `${fmt(v)}원`} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        )}
       </div>
 
       {/* 월별 예상 입금 + 미회수 D-day */}
