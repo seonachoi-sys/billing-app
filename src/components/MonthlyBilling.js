@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { calculateVAT, fmt } from '../utils/calculations';
-import { sendBillingEmail } from '../utils/emailService';
 import useLocalStorage from '../hooks/useLocalStorage';
 import BillingGuide from './BillingGuide';
+import EmailSendModal from './EmailSendModal';
 
 // 수량 차이 경고 허용 범위
 const QTY_TOLERANCE = 20;
@@ -124,9 +124,8 @@ const MonthlyBilling = () => {
   const [moveTarget, setMoveTarget] = useState('');
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [emailHistory, setEmailHistory] = useLocalStorage('billing_email_history', []);
-  const [sendingEmail, setSendingEmail] = useState(null);
-  const [emailResult, setEmailResult] = useState(null);
   const [showEmailModal, setShowEmailModal] = useState(null);
+  const [emailToast, setEmailToast] = useState(null);
 
   const toggleExpand = (id) => {
     setExpandedRows(prev => {
@@ -168,7 +167,7 @@ const MonthlyBilling = () => {
     return map;
   }, [hospitals]);
 
-  // 이메일 발송 확인 모달 정보
+  // 이메일 모달용 정보 생성
   const emailModalInfo = useMemo(() => {
     if (!showEmailModal) return null;
     const item = showEmailModal;
@@ -176,7 +175,6 @@ const MonthlyBilling = () => {
     const info = hospitalEmailMap[hospitalName];
     if (!info) return null;
     const [year, month] = billingMonth.split('-');
-
     let casCount = 0, exoCount = 0;
     if (info.emailType === '건수 안내') {
       monthItems.filter(l => l['거래처명'] === hospitalName).forEach(l => {
@@ -187,53 +185,23 @@ const MonthlyBilling = () => {
     }
     return { hospitalName, email: info.email, contactName: info.contactName,
              emailType: info.emailType, year, month, casCount, exoCount,
-             totalCount: casCount + exoCount };
+             totalCount: casCount + exoCount, billingMonth };
   }, [showEmailModal, hospitalEmailMap, billingMonth, monthItems]);
-
-  // 이메일 발송
-  const handleSendEmail = async (item) => {
-    const hospitalName = item['거래처명'];
-    const info = hospitalEmailMap[hospitalName];
-    if (!info || !info.email) {
-      setEmailResult({ success: false, message: `${hospitalName}의 이메일이 등록되지 않았습니다.\n거래처 관리에서 이메일을 등록해주세요.` });
-      setTimeout(() => setEmailResult(null), 4000);
-      return;
-    }
-    const [year, month] = billingMonth.split('-');
-    let casCount = 0, exoCount = 0;
-    if (info.emailType === '건수 안내') {
-      monthItems.filter(l => l['거래처명'] === hospitalName).forEach(l => {
-        const count = parseInt(l['최종건수']) || 0;
-        if (l['제품명'] === 'CAS') casCount += count;
-        else if (l['제품명'] === 'EXO') exoCount += count;
-      });
-    }
-    setSendingEmail(hospitalName);
-    setEmailResult(null);
-    const result = await sendBillingEmail({
-      hospitalName, toEmail: info.email, contactName: info.contactName,
-      emailType: info.emailType, year, month,
-      casCount, exoCount, totalCount: casCount + exoCount,
-    });
-    setSendingEmail(null);
-    setEmailResult(result);
-    setEmailHistory(prev => [{
-      _id: Date.now().toString(), 발송일시: new Date().toLocaleString('ko-KR'),
-      거래처명: hospitalName, 이메일: info.email, 템플릿: info.emailType,
-      청구기준: billingMonth, 결과: result.success ? '성공' : '실패', 메시지: result.message,
-    }, ...prev]);
-    setTimeout(() => setEmailResult(null), 4000);
-    setShowEmailModal(null);
-  };
 
   const openEmailModal = (item) => {
     const info = hospitalEmailMap[item['거래처명']];
     if (!info || !info.email) {
-      setEmailResult({ success: false, message: `${item['거래처명']}의 이메일이 등록되지 않았습니다.\n거래처 관리에서 이메일을 등록해주세요.` });
-      setTimeout(() => setEmailResult(null), 4000);
+      setEmailToast({ success: false, message: `${item['거래처명']}의 이메일이 등록되지 않았습니다.\n거래처 관리에서 이메일을 등록해주세요.` });
+      setTimeout(() => setEmailToast(null), 4000);
       return;
     }
     setShowEmailModal(item);
+  };
+
+  const handleEmailSent = (historyEntry) => {
+    setEmailHistory(prev => [historyEntry, ...prev]);
+    setEmailToast({ success: historyEntry.결과 === '성공', message: historyEntry.메시지 });
+    setTimeout(() => setEmailToast(null), 4000);
   };
 
   // 월 이동 (뷰 전환)
@@ -245,18 +213,18 @@ const MonthlyBilling = () => {
 
   return (
     <div className="space-y-4">
-      {/* 발송 결과 알림 */}
-      {emailResult && (
+      {/* 발송 결과 토스트 */}
+      {emailToast && (
         <div className={`fixed top-4 right-4 z-[60] max-w-sm px-4 py-3 rounded-lg shadow-lg border text-sm ${
-          emailResult.success ? 'bg-green-50 border-green-300 text-green-800' : 'bg-red-50 border-red-300 text-red-800'
+          emailToast.success ? 'bg-green-50 border-green-300 text-green-800' : 'bg-red-50 border-red-300 text-red-800'
         }`}>
           <div className="flex items-start gap-2">
-            <span className="text-lg">{emailResult.success ? '✅' : '❌'}</span>
+            <span className="text-lg">{emailToast.success ? '✅' : '❌'}</span>
             <div>
-              <p className="font-medium">{emailResult.success ? '발송 완료' : '발송 실패'}</p>
-              <p className="text-xs mt-0.5 whitespace-pre-line">{emailResult.message}</p>
+              <p className="font-medium">{emailToast.success ? '발송 완료' : '발송 실패'}</p>
+              <p className="text-xs mt-0.5 whitespace-pre-line">{emailToast.message}</p>
             </div>
-            <button onClick={() => setEmailResult(null)} className="ml-2 text-gray-400 hover:text-gray-600">&times;</button>
+            <button onClick={() => setEmailToast(null)} className="ml-2 text-gray-400 hover:text-gray-600">&times;</button>
           </div>
         </div>
       )}
@@ -495,17 +463,14 @@ const MonthlyBilling = () => {
                           return (
                             <button
                               onClick={() => openEmailModal(item)}
-                              disabled={sendingEmail === item['거래처명']}
                               title={hasEmail ? `${info.email} (${info.emailType})` : '이메일 미등록'}
                               className={`text-xs px-2 py-1 rounded border transition-colors ${
-                                sendingEmail === item['거래처명']
-                                  ? 'bg-gray-100 text-gray-400 cursor-wait'
-                                  : hasEmail
-                                    ? 'border-blue-300 text-blue-600 hover:bg-blue-50'
-                                    : 'border-gray-200 text-gray-300 cursor-not-allowed'
+                                hasEmail
+                                  ? 'border-blue-300 text-blue-600 hover:bg-blue-50'
+                                  : 'border-gray-200 text-gray-300 cursor-not-allowed'
                               }`}
                             >
-                              {sendingEmail === item['거래처명'] ? '⏳' : '📧'}
+                              📧
                             </button>
                           );
                         })()}
@@ -559,77 +524,13 @@ const MonthlyBilling = () => {
         </div>
       )}
 
-      {/* 이메일 발송 확인 모달 */}
+      {/* 이메일 발송 모달 (미리보기 + 발송) */}
       {showEmailModal && emailModalInfo && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-            <div className="flex items-center justify-between px-6 py-4 border-b">
-              <h3 className="text-lg font-bold text-gray-800">📧 메일 발송 확인</h3>
-              <button onClick={() => setShowEmailModal(null)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">거래처</span>
-                  <span className="font-medium">{emailModalInfo.hospitalName}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">수신 이메일</span>
-                  <span className="font-medium text-blue-600">{emailModalInfo.email}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">담당자명</span>
-                  <span className="font-medium">{emailModalInfo.contactName || '-'}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">청구기준</span>
-                  <span className="font-medium">{billingMonth}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">템플릿</span>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                    emailModalInfo.emailType === '회신 요청'
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'bg-purple-100 text-purple-700'
-                  }`}>
-                    {emailModalInfo.emailType}
-                  </span>
-                </div>
-                {emailModalInfo.emailType === '건수 안내' && (
-                  <div className="border-t pt-2 mt-2 space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">CAS 건수</span>
-                      <span className="font-medium">{emailModalInfo.casCount}건</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">EXO 건수</span>
-                      <span className="font-medium">{emailModalInfo.exoCount}건</span>
-                    </div>
-                    <div className="flex justify-between text-sm font-semibold">
-                      <span className="text-gray-700">총 건수</span>
-                      <span>{emailModalInfo.totalCount}건</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="flex justify-end gap-3">
-                <button onClick={() => setShowEmailModal(null)}
-                  className="px-4 py-2 border rounded-md text-sm text-gray-600 hover:bg-gray-50">취소</button>
-                <button
-                  onClick={() => handleSendEmail(showEmailModal)}
-                  disabled={!!sendingEmail}
-                  className="px-4 py-2 bg-blue-500 text-white rounded-md text-sm font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {sendingEmail ? (
-                    <><span className="animate-spin">⏳</span> 발송 중...</>
-                  ) : (
-                    <>📧 발송하기</>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <EmailSendModal
+          info={emailModalInfo}
+          onClose={() => setShowEmailModal(null)}
+          onSent={handleEmailSent}
+        />
       )}
     </div>
   );
