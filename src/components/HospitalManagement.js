@@ -206,20 +206,28 @@ const HospitalManagement = () => {
                 <h4 className="text-xs font-semibold text-gray-500 mb-2">진료과 · 제품별 현황</h4>
                 <div className="grid gap-2">
                   {Object.entries(detail.productSummary).map(([key, ps]) => (
-                    <div key={key} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">{ps.dept}</span>
-                        <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
-                          ps.product === 'CAS' ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'
-                        }`}>{ps.product}</span>
-                        <span className="text-xs text-gray-400">코드: {ps.record['업체코드']}</span>
-                        <span className="text-xs text-gray-400">납품가 {fmt(ps.record['납품가'])}원</span>
-                      </div>
-                      <div className="flex items-center gap-4 text-xs">
-                        <span className="text-gray-500">청구 {fmt(ps.totalSales)}원</span>
-                        <span className={ps.outstanding > 0 ? 'text-red-600 font-semibold' : 'text-green-600'}>
-                          미수 {fmt(ps.outstanding)}원
-                        </span>
+                    <div key={key} className="bg-gray-50 rounded-lg px-3 py-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">{ps.dept}</span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                            ps.product === 'CAS' ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'
+                          }`}>{ps.product}</span>
+                          <span className="text-xs text-gray-500">담당: {ps.record['담당의사'] || '-'}</span>
+                          <span className="text-xs text-gray-400">납품가 {fmt(ps.record['납품가'])}원</span>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs">
+                          <span className="text-gray-500">청구 {fmt(ps.totalSales)}원</span>
+                          <span className={ps.outstanding > 0 ? 'text-red-600 font-semibold' : 'text-green-600'}>
+                            미수 {fmt(ps.outstanding)}원
+                          </span>
+                          <button onClick={() => handleEdit(ps.record)}
+                            className="text-blue-500 hover:text-blue-700">수정</button>
+                          {detail.records.length > 1 && (
+                            <button onClick={() => handleDelete(ps.record)}
+                              className="text-red-400 hover:text-red-600">삭제</button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
