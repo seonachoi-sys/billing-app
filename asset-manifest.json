@@ -1,13 +1,13 @@
 {
   "files": {
     "main.css": "/billing-app/static/css/main.e1e8b368.css",
-    "main.js": "/billing-app/static/js/main.78cfb843.js",
+    "main.js": "/billing-app/static/js/main.4e9e8fcf.js",
     "index.html": "/billing-app/index.html",
     "main.e1e8b368.css.map": "/billing-app/static/css/main.e1e8b368.css.map",
-    "main.78cfb843.js.map": "/billing-app/static/js/main.78cfb843.js.map"
+    "main.4e9e8fcf.js.map": "/billing-app/static/js/main.4e9e8fcf.js.map"
   },
   "entrypoints": [
     "static/css/main.e1e8b368.css",
-    "static/js/main.78cfb843.js"
+    "static/js/main.4e9e8fcf.js"
   ]
 }
