@@ -370,9 +370,20 @@ const MonthlyBilling = () => {
                         {item['최종건수']}
                       </td>
 
-                      {/* 단가 */}
-                      <td className="table-cell text-right text-xs text-gray-500">
-                        {fmt(item['단가'])}
+                      {/* 단가 (납품가, VAT포함) */}
+                      <td className="table-cell">
+                        <input type="number" min="0"
+                          value={item['단가'] || ''}
+                          onChange={e => {
+                            const newPrice = parseInt(e.target.value) || 0;
+                            const updates = recalcAmount(item, { '단가': newPrice });
+                            updates['단가'] = newPrice;
+                            updateLedgerEntry(item._id, updates);
+                          }}
+                          disabled={isLocked}
+                          className={`w-20 border rounded px-2 py-1 text-sm text-right ${
+                            isLocked ? 'bg-gray-100 text-gray-400' : item['단가'] === 0 ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                          }`} />
                       </td>
 
                       {/* 청구금액 */}
