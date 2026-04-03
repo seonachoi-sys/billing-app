@@ -6,6 +6,7 @@ import Ledger from './components/Ledger';
 import InvoiceGenerator from './components/InvoiceGenerator';
 import HospitalManagement from './components/HospitalManagement';
 import Settings from './components/Settings';
+import Statistics from './components/Statistics';
 import OverdueAlerts from './components/OverdueAlerts';
 
 const tabs = [
@@ -14,6 +15,7 @@ const tabs = [
   { id: 'ledger', label: '미수금 관리', icon: '📋' },
   { id: 'invoice', label: '거래명세서', icon: '📄' },
   { id: 'hospital', label: '거래처 관리', icon: '🏥' },
+  { id: 'statistics', label: '통계', icon: '📈' },
   { id: 'settings', label: '설정', icon: '⚙️' },
 ];
 
@@ -29,6 +31,7 @@ function AppContent() {
       case 'ledger': return <Ledger />;
       case 'invoice': return <InvoiceGenerator />;
       case 'hospital': return <HospitalManagement />;
+      case 'statistics': return <Statistics />;
       case 'settings': return <Settings />;
       default: return <Dashboard />;
     }
