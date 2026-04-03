@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { fmt, calculateDday } from '../utils/calculations';
-import BillingGuide from './BillingGuide';
 
 const DateInput = ({ value, onCommit }) => {
   const [local, setLocal] = useState(value || '');
@@ -32,16 +31,6 @@ const Ledger = () => {
   const [nameFilter, setNameFilter] = useState('');
   const [monthFilter, setMonthFilter] = useState('');
   const [showCompleted, setShowCompleted] = useState(false);
-  const [expandedRows, setExpandedRows] = useState(new Set());
-
-  const toggleExpand = (id) => {
-    setExpandedRows(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
 
   const months = [...new Set(ledger.map(i => i['청구기준']))].filter(Boolean).sort();
 
@@ -147,7 +136,7 @@ const Ledger = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                {['', '청구기준', '거래처명', '제품', '건수', '청구금액', '미수금', '예정일', 'D-day', '상태', '입금일'].map(h => (
+                {['청구기준', '거래처명', '제품', '건수', '청구금액', '미수금', '예정일', 'D-day', '상태', '입금일'].map(h => (
                   <th key={h} className="table-header px-3 py-3">{h}</th>
                 ))}
               </tr>
@@ -155,69 +144,46 @@ const Ledger = () => {
             <tbody className="divide-y divide-gray-200">
               {activeItems.map((item) => {
                 const dday = calculateDday(item['입금예정일']);
-                const steps = item['청구단계'] || { step1: false, step2: false, step3: false, step4: false };
-                const stepValues = [steps.step1, steps.step2, steps.step3, steps.step4];
-                const isExpanded = expandedRows.has(item._id);
                 return (
-                  <React.Fragment key={item._id}>
-                    <tr className={`hover:bg-gray-50 ${dday > 0 ? 'bg-red-50' : ''}`}>
-                      <td className="table-cell px-2">
-                        <button onClick={() => toggleExpand(item._id)}
-                          className="flex items-center gap-1.5 text-gray-400 hover:text-blue-500 transition-colors">
-                          <span className="text-xs">{isExpanded ? '▼' : '▶'}</span>
-                          <div className="flex gap-0.5">
-                            {stepValues.map((v, i) => (
-                              <div key={i} className={`w-1.5 h-1.5 rounded-full ${v ? 'bg-green-500' : 'bg-gray-300'}`} />
-                            ))}
-                          </div>
-                        </button>
-                      </td>
-                      <td className="table-cell text-xs">{item['청구기준']}</td>
-                      <td className="table-cell font-medium text-sm">{item['거래처명']}</td>
-                      <td className="table-cell text-xs">{item['제품명']}</td>
-                      <td className="table-cell text-right text-xs">{item['최종건수']}</td>
-                      <td className="table-cell text-right text-sm">{fmt(item['청구금액'])}원</td>
-                      <td className={`table-cell text-right text-sm ${item['미수금'] > 0 ? 'text-red-600 font-semibold' : ''}`}>
-                        {fmt(item['미수금'])}원
-                      </td>
-                      <td className="table-cell text-xs">{item['입금예정일']}</td>
-                      <td className="table-cell text-center">
-                        {dday !== null && (
-                          <span className={`badge ${dday > 0 ? 'badge-red' : dday > -7 ? 'badge-yellow' : 'badge-blue'}`}>
-                            {dday > 0 ? `D+${dday}` : `D${dday}`}
-                          </span>
-                        )}
-                      </td>
-                      <td className="table-cell">
-                        <select value={item['채권상태']}
-                          onChange={e => handleStatusChange(item, e.target.value)}
-                          className="border rounded px-2 py-1 text-xs border-gray-300">
-                          <option value="정상">정상</option>
-                          <option value="완납">완납</option>
-                          <option value="청구확정">청구확정</option>
-                          <option value="미청구">미청구</option>
-                          <option value="연체">연체</option>
-                        </select>
-                      </td>
-                      <td className="table-cell">
-                        <DateInput
-                          value={item['실제입금일']}
-                          onCommit={date => handlePaymentDate(item, date)}
-                        />
-                      </td>
-                    </tr>
-                    {isExpanded && (
-                      <tr>
-                        <td colSpan={11} className="p-0 bg-gray-50 border-b border-blue-100">
-                          <BillingGuide entry={item} />
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
+                  <tr key={item._id} className={`hover:bg-gray-50 ${dday > 0 ? 'bg-red-50' : ''}`}>
+                    <td className="table-cell text-xs">{item['청구기준']}</td>
+                    <td className="table-cell font-medium text-sm">{item['거래처명']}</td>
+                    <td className="table-cell text-xs">{item['제품명']}</td>
+                    <td className="table-cell text-right text-xs">{item['최종건수']}</td>
+                    <td className="table-cell text-right text-sm">{fmt(item['청구금액'])}원</td>
+                    <td className={`table-cell text-right text-sm ${item['미수금'] > 0 ? 'text-red-600 font-semibold' : ''}`}>
+                      {fmt(item['미수금'])}원
+                    </td>
+                    <td className="table-cell text-xs">{item['입금예정일']}</td>
+                    <td className="table-cell text-center">
+                      {dday !== null && (
+                        <span className={`badge ${dday > 0 ? 'badge-red' : dday > -7 ? 'badge-yellow' : 'badge-blue'}`}>
+                          {dday > 0 ? `D+${dday}` : `D${dday}`}
+                        </span>
+                      )}
+                    </td>
+                    <td className="table-cell">
+                      <select value={item['채권상태']}
+                        onChange={e => handleStatusChange(item, e.target.value)}
+                        className="border rounded px-2 py-1 text-xs border-gray-300">
+                        <option value="정상">정상</option>
+                        <option value="완납">완납</option>
+                        <option value="청구확정">청구확정</option>
+                        <option value="미청구">미청구</option>
+                        <option value="연체">연체</option>
+                      </select>
+                    </td>
+                    <td className="table-cell">
+                      <DateInput
+                        value={item['실제입금일']}
+                        onCommit={date => handlePaymentDate(item, date)}
+                      />
+                    </td>
+                  </tr>
                 );
               })}
               {activeItems.length === 0 && (
-                <tr><td colSpan={11} className="text-center text-gray-400 py-8 text-sm">미수금이 없습니다</td></tr>
+                <tr><td colSpan={10} className="text-center text-gray-400 py-8 text-sm">미수금이 없습니다</td></tr>
               )}
             </tbody>
           </table>

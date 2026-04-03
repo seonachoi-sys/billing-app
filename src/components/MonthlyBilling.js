@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { calculateVAT, calculateDueDate, fmt } from '../utils/calculations';
+import BillingGuide from './BillingGuide';
 
 // 수량 차이 허용 범위
 const QTY_TOLERANCE = 20;
@@ -146,6 +147,16 @@ const MonthlyBilling = () => {
   // 이 달 청구 → 다른 월로 이동
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [moveTarget, setMoveTarget] = useState('');
+  const [expandedRows, setExpandedRows] = useState(new Set());
+
+  const toggleExpand = (id) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const handleMoveMonth = () => {
     if (!moveTarget || moveTarget === billingMonth) return;
@@ -253,7 +264,7 @@ const MonthlyBilling = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  {['거래처명', '진료과', '제품', '회사수량', '병원수량', '차이', '차월이월', '전월반영', '최종건수', '단가', '청구금액', '수량확정', '계산서', '상태'].map(h => (
+                  {['', '거래처명', '진료과', '제품', '회사수량', '병원수량', '차이', '차월이월', '전월반영', '최종건수', '단가', '청구금액', '수량확정', '계산서', '상태'].map(h => (
                     <th key={h} className="table-header px-3 py-3">{h}</th>
                   ))}
                 </tr>
@@ -265,12 +276,27 @@ const MonthlyBilling = () => {
                   const hospitalQty = parseInt(item['병원수량']) || 0;
                   const qtyResult = resolveQty(companyQty, hospitalQty);
                   const bothEntered = companyQty > 0 && hospitalQty > 0;
+                  const steps = item['청구단계'] || { step1: false, step2: false, step3: false, step4: false };
+                  const stepValues = [steps.step1, steps.step2, steps.step3, steps.step4];
+                  const isExpanded = expandedRows.has(item._id);
                   return (
-                    <tr key={item._id} className={`hover:bg-gray-50 ${
+                    <React.Fragment key={item._id}>
+                    <tr className={`hover:bg-gray-50 ${
                       item['채권상태'] === '청구확정' ? 'bg-blue-50' :
                       bothEntered && qtyResult.status === 'warn' ? 'bg-orange-50' :
                       item['최종건수'] === 0 ? 'bg-yellow-50' : ''
                     }`}>
+                      <td className="table-cell px-2">
+                        <button onClick={() => toggleExpand(item._id)}
+                          className="flex items-center gap-1.5 text-gray-400 hover:text-blue-500 transition-colors">
+                          <span className="text-xs">{isExpanded ? '▼' : '▶'}</span>
+                          <div className="flex gap-0.5">
+                            {stepValues.map((v, i) => (
+                              <div key={i} className={`w-1.5 h-1.5 rounded-full ${v ? 'bg-green-500' : 'bg-gray-300'}`} />
+                            ))}
+                          </div>
+                        </button>
+                      </td>
                       <td className="table-cell font-medium text-sm">{item['거래처명']}</td>
                       <td className="table-cell text-xs text-gray-500">{item['진료과']}</td>
                       <td className="table-cell text-xs">{item['제품명']}</td>
@@ -391,6 +417,14 @@ const MonthlyBilling = () => {
                         </span>
                       </td>
                     </tr>
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan={15} className="p-0 bg-gray-50 border-b border-blue-100">
+                          <BillingGuide entry={item} />
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>
