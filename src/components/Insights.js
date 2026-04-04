@@ -21,10 +21,8 @@ function getBepLabel(rate) {
   return `${rate}%`;
 }
 
-function getBepBgClass(rate) {
-  if (rate >= 100) return 'bg-green-50 border-green-200';
-  if (rate >= 30) return 'bg-yellow-50 border-yellow-200';
-  return 'bg-red-50 border-red-200';
+function getBepBgClass() {
+  return 'bg-white border-gray-200';
 }
 
 const Insights = () => {
@@ -138,8 +136,8 @@ const Insights = () => {
                   </p>
                 </div>
                 <span
-                  className="px-3 py-1 rounded-full text-xs font-bold text-white"
-                  style={{ backgroundColor: color }}
+                  className="px-3 py-1 rounded-full text-xs font-bold bg-white"
+                  style={{ color, border: `0.5px solid ${color}` }}
                 >
                   {getBepLabel(r.bepRate)}
                 </span>
