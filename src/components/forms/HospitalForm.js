@@ -13,6 +13,8 @@ const HospitalForm = ({ onClose, editHospital = null }) => {
     '담당의사': '', '제품명': 'CAS', '납품가': '', '청구형태': '직납',
     '정산주기': '60일', '영업담당자': '', '병원담당자명': '', '병원담당자전화': '',
     '병원담당자이메일': '', '이메일유형': '회신 요청', '업체': '', '청구매뉴얼': '', '비고': '',
+    // 원가 관련
+    '스마트폰수량': '1', '태블릿수량': '1', '소모품비': '0',
     // 계약 정보
     '계약일': '', '갱신': '',
   });
@@ -32,6 +34,9 @@ const HospitalForm = ({ onClose, editHospital = null }) => {
         '병원담당자전화': editHospital['병원담당자전화'] || '',
         '병원담당자이메일': editHospital['병원담당자이메일'] || '',
         '이메일유형': editHospital['이메일유형'] || '회신 요청',
+        '스마트폰수량': String(editHospital['스마트폰수량'] ?? 1),
+        '태블릿수량': String(editHospital['태블릿수량'] ?? 1),
+        '소모품비': String(editHospital['소모품비'] || 0),
       }));
     } else {
       setForm(prev => ({ ...prev, '업체코드': generateClientCode(hospitals) }));
@@ -71,6 +76,9 @@ const HospitalForm = ({ onClose, editHospital = null }) => {
       '업체': form['업체'],
       '청구매뉴얼': form['청구매뉴얼'],
       '비고': form['비고'],
+      '스마트폰수량': parseInt(form['스마트폰수량']) || 1,
+      '태블릿수량': parseInt(form['태블릿수량']) || 1,
+      '소모품비': parseInt(form['소모품비']) || 0,
     };
 
     if (editHospital) {
@@ -233,6 +241,28 @@ const HospitalForm = ({ onClose, editHospital = null }) => {
                   <option value="건수 안내">건수 안내</option>
                 </select>
                 <p className="text-xs text-gray-400 mt-0.5">메일 발송 시 사용할 템플릿 유형</p>
+              </div>
+            </div>
+          </div>
+
+          {/* 원가 설정 */}
+          <div className="border-t pt-4 mt-2">
+            <h4 className="text-sm font-semibold text-gray-700 mb-3">원가 설정 (BEP 분석용)</h4>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">스마트폰 수량</label>
+                <input type="number" value={form['스마트폰수량']} onChange={set('스마트폰수량')}
+                  min="0" className="w-full border rounded-md px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">태블릿 수량</label>
+                <input type="number" value={form['태블릿수량']} onChange={set('태블릿수량')}
+                  min="0" className="w-full border rounded-md px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">소모품비 (1회)</label>
+                <input type="number" value={form['소모품비']} onChange={set('소모품비')}
+                  min="0" className="w-full border rounded-md px-3 py-2 text-sm" />
               </div>
             </div>
           </div>
