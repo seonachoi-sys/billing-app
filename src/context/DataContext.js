@@ -61,6 +61,7 @@ export function DataProvider({ children }) {
   const [notifiedIds, setNotifiedIds] = useLocalStorage('billing_notified', []);
   const [costSettings, setCostSettings] = useLocalStorage('billing_cost_settings', { ...DEFAULT_COST_SETTINGS });
   const [hospitalCosts, setHospitalCosts] = useLocalStorage('billing_hospital_costs', {});
+  const [closedMonths, setClosedMonths] = useLocalStorage('billing_closed_months', []);
   const [firebaseReady, setFirebaseReady] = useState(false);
   const [firebaseError, setFirebaseError] = useState(null);
   const notificationSent = useRef(false);
@@ -457,6 +458,18 @@ export function DataProvider({ children }) {
     localStorage.removeItem('billing_firebase_migrated');
   }, [setLedger, setHospitals, setMaster, setNotifiedIds, setCostSettings, setHospitalCosts]);
 
+  const closeMonth = useCallback((month) => {
+    setClosedMonths(prev => prev.includes(month) ? prev : [...prev, month]);
+  }, [setClosedMonths]);
+
+  const openMonth = useCallback((month) => {
+    setClosedMonths(prev => prev.filter(m => m !== month));
+  }, [setClosedMonths]);
+
+  const isMonthClosed = useCallback((month) => {
+    return closedMonths.includes(month);
+  }, [closedMonths]);
+
   const value = {
     ledger, hospitals, master, invoiceTemplate,
     addLedgerEntry, updateLedgerEntry, deleteLedgerEntry, generateMonthlyEntries,
@@ -468,6 +481,7 @@ export function DataProvider({ children }) {
     costSettings, hospitalCosts,
     updateCostSettings, updateHospitalCost,
     buildMonthlySummary, syncMonthlySummary,
+    closeMonth, openMonth, isMonthClosed,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

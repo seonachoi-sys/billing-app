@@ -9,7 +9,7 @@ import EmailSendModal from './EmailSendModal';
 const QTY_TOLERANCE = 20;
 
 const MonthlyBilling = () => {
-  const { ledger, hospitals, updateLedgerEntry, deleteLedgerEntry, generateMonthlyEntries } = useData();
+  const { ledger, hospitals, updateLedgerEntry, deleteLedgerEntry, generateMonthlyEntries, closeMonth, openMonth, isMonthClosed } = useData();
 
   const [billingMonth, setBillingMonth] = useState(() => {
     const d = new Date();
@@ -23,6 +23,7 @@ const MonthlyBilling = () => {
   );
 
   const hasData = monthItems.length > 0;
+  const isClosed = isMonthClosed(billingMonth);
 
   // 요약
   const summary = useMemo(() => {
@@ -242,11 +243,13 @@ const MonthlyBilling = () => {
               className="px-3 py-2 border rounded-md text-sm hover:bg-gray-50">&rarr;</button>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={handleGenerate}
-              className="bg-green-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-600">
-              {hasData ? '신규 거래처 추가' : '이 달 청구 생성'}
-            </button>
-            {hasData && (
+            {!isClosed && (
+              <button onClick={handleGenerate}
+                className="bg-green-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-600">
+                {hasData ? '신규 거래처 추가' : '이 달 청구 생성'}
+              </button>
+            )}
+            {hasData && !isClosed && (
               <>
                 <button onClick={() => { setMoveTarget(''); setShowMoveModal(true); }}
                   className="border border-gray-300 text-gray-600 px-3 py-2 rounded-md text-sm hover:bg-gray-50">
@@ -261,6 +264,31 @@ const MonthlyBilling = () => {
                   수량확정 → 청구확정
                 </button>
               </>
+            )}
+            {hasData && (
+              isClosed ? (
+                <button onClick={() => {
+                  if (window.confirm(`${billingMonth} 마감을 해제하시겠습니까?\n데이터 수정이 가능해집니다.`)) {
+                    openMonth(billingMonth);
+                  }
+                }}
+                  className="border border-orange-400 text-orange-600 px-4 py-2 rounded-md text-sm font-medium hover:bg-orange-50">
+                  마감 해제
+                </button>
+              ) : (
+                <button onClick={() => {
+                  const unconfirmed = monthItems.filter(i => i['채권상태'] !== '청구확정' && i['채권상태'] !== '완납');
+                  if (unconfirmed.length > 0) {
+                    if (!window.confirm(`미확정 ${unconfirmed.length}건이 있습니다.\n그래도 마감하시겠습니까?`)) return;
+                  } else {
+                    if (!window.confirm(`${billingMonth} 청구를 마감하시겠습니까?\n마감 후 데이터 수정이 불가합니다.`)) return;
+                  }
+                  closeMonth(billingMonth);
+                }}
+                  className="bg-red-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-red-600">
+                  청구 마감
+                </button>
+              )
             )}
           </div>
         </div>
@@ -301,6 +329,17 @@ const MonthlyBilling = () => {
         </div>
       )}
 
+      {/* 마감 배너 */}
+      {isClosed && (
+        <div className="bg-red-50 border border-red-200 rounded-lg px-5 py-3 flex items-center gap-3">
+          <span className="text-red-500 text-lg">🔒</span>
+          <div>
+            <p className="text-sm font-semibold text-red-700">{billingMonth} 청구 마감됨</p>
+            <p className="text-xs text-red-500">데이터 수정이 불가합니다. 수정이 필요하면 마감 해제를 먼저 진행하세요.</p>
+          </div>
+        </div>
+      )}
+
       {/* 청구 테이블 */}
       {hasData && (
         <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -315,7 +354,7 @@ const MonthlyBilling = () => {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {[...monthItems].sort((a, b) => (a['거래처명'] || '').localeCompare(b['거래처명'] || '', 'ko')).map((item) => {
-                  const isLocked = item['채권상태'] === '청구확정' || item['채권상태'] === '완납';
+                  const isLocked = isClosed || item['채권상태'] === '청구확정' || item['채권상태'] === '완납';
                   const companyQty = parseInt(item['당월발생']) || 0;
                   const hospitalQty = parseInt(item['병원수량']) || 0;
                   const bothEntered = companyQty > 0 && hospitalQty > 0;
