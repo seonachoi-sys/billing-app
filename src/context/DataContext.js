@@ -63,6 +63,7 @@ export function DataProvider({ children }) {
   const [costSettings, setCostSettings] = useLocalStorage('billing_cost_settings', { ...DEFAULT_COST_SETTINGS });
   const [hospitalCosts, setHospitalCosts] = useLocalStorage('billing_hospital_costs', {});
   const [closedMonths, setClosedMonths] = useLocalStorage('billing_closed_months', []);
+  const [statsMemo, setStatsMemo] = useLocalStorage('billing_stats_memo', '');
   const [firebaseReady, setFirebaseReady] = useState(false);
   const [firebaseError, setFirebaseError] = useState(null);
   const [invoices, setInvoices] = useState([]);
@@ -520,6 +521,7 @@ export function DataProvider({ children }) {
     buildMonthlySummary, syncMonthlySummary,
     closeMonth, openMonth, isMonthClosed,
     invoices, reconciliation, seedingStatus,
+    statsMemo, setStatsMemo,
   };
 
   return (

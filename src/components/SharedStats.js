@@ -27,7 +27,7 @@ function ChangeIndicator({ change, unit = '' }) {
 }
 
 const SharedStats = () => {
-  const { invoices, firebaseReady, firebaseError } = useData();
+  const { invoices, firebaseReady, firebaseError, statsMemo } = useData();
   const [activeSection, setActiveSection] = useState('qty');
   const hospitalMeta = HOSPITAL_META;
 
@@ -84,8 +84,8 @@ const SharedStats = () => {
           ))}
         </div>
 
-        {activeSection === 'qty' && <SharedQty invoices={invoices} hospitalMeta={hospitalMeta} />}
-        {activeSection === 'revenue' && <SharedRevenue invoices={invoices} hospitalMeta={hospitalMeta} />}
+        {activeSection === 'qty' && <SharedQty invoices={invoices} hospitalMeta={hospitalMeta} statsMemo={statsMemo} />}
+        {activeSection === 'revenue' && <SharedRevenue invoices={invoices} hospitalMeta={hospitalMeta} statsMemo={statsMemo} />}
         {activeSection === 'salesRep' && <SharedSalesRep invoices={invoices} hospitalMeta={hospitalMeta} />}
       </main>
 
@@ -109,7 +109,7 @@ function useYearTab(invoices, basisType) {
   return { monthKey, years, selectedYear: effectiveYear, setSelectedYear, yearData, months };
 }
 
-function BasisBanner({ invoices, selectedYear }) {
+function BasisBanner({ invoices, selectedYear, memo }) {
   const carryovers = useMemo(() =>
     invoices.filter(i => i.occurrenceMonth !== i.billingMonth &&
       ((i.occurrenceMonth||'').startsWith(selectedYear) || (i.billingMonth||'').startsWith(selectedYear))),
@@ -144,6 +144,9 @@ function BasisBanner({ invoices, selectedYear }) {
           </div>
         ))}
       </div>
+      {memo && (
+        <p className="mt-2 pt-2 border-t border-amber-200 text-xs text-amber-700 whitespace-pre-wrap">{memo}</p>
+      )}
     </div>
   );
 }
@@ -173,7 +176,7 @@ function SFilterBar({ years, selectedYear, setSelectedYear, basisType, setBasisT
 }
 
 // 청구 건수
-function SharedQty({ invoices, hospitalMeta }) {
+function SharedQty({ invoices, hospitalMeta, statsMemo }) {
   const [basisType, setBasisType] = useState('occurrence');
   const { monthKey, years, selectedYear, setSelectedYear, yearData, months } = useYearTab(invoices, basisType);
   const [productFilter, setProductFilter] = useState('');
@@ -213,7 +216,7 @@ function SharedQty({ invoices, hospitalMeta }) {
             <option value="">전체 진료과</option><option value="안과">안과</option><option value="내과">내과</option>
           </select>
         </>} />
-      <BasisBanner invoices={invoices} selectedYear={selectedYear} />
+      <BasisBanner invoices={invoices} selectedYear={selectedYear} memo={statsMemo} />
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-lg shadow p-4"><p className="text-xs text-gray-500">거래처 수</p><p className="text-2xl font-bold text-gray-800">{hospitalStats.length}<span className="text-sm font-normal text-gray-400">곳</span></p></div>
         <div className="bg-white rounded-lg shadow p-4"><p className="text-xs text-gray-500">총 건수</p><p className="text-2xl font-bold text-blue-600">{fmt(grandTotal)}<span className="text-sm font-normal text-gray-400">건</span></p></div>
@@ -261,7 +264,7 @@ function SharedQty({ invoices, hospitalMeta }) {
 }
 
 // 매출
-function SharedRevenue({ invoices, hospitalMeta }) {
+function SharedRevenue({ invoices, hospitalMeta, statsMemo }) {
   const [basisType, setBasisType] = useState('occurrence');
   const { monthKey, years, selectedYear, setSelectedYear, yearData } = useYearTab(invoices, basisType);
   const [productFilter, setProductFilter] = useState('');
@@ -298,7 +301,7 @@ function SharedRevenue({ invoices, hospitalMeta }) {
         extra={<select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="border border-gray-300 rounded-md px-3 py-1.5 text-sm">
           <option value="">전체 구분</option><option value="상급">상급</option><option value="로컬">로컬</option>
         </select>} />
-      <BasisBanner invoices={invoices} selectedYear={selectedYear} />
+      <BasisBanner invoices={invoices} selectedYear={selectedYear} memo={statsMemo} />
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-lg shadow p-4"><p className="text-xs text-gray-500">총 매출 <span className="text-orange-400">(공급가액)</span></p><p className="text-2xl font-bold text-gray-800">{fmt(grandRevenue)}<span className="text-sm font-normal text-gray-400">원</span></p></div>
         <div className="bg-white rounded-lg shadow p-4"><p className="text-xs text-gray-500">총 건수</p><p className="text-2xl font-bold text-blue-600">{fmt(grandQty)}<span className="text-sm font-normal text-gray-400">건</span></p></div>

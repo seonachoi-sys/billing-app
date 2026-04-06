@@ -35,7 +35,7 @@ async function sendSlack(webhookUrl, text) {
 }
 
 const Settings = () => {
-  const { ledger, hospitals, master, exportData, importData, resetToSeed, firebaseReady, firebaseError } = useData();
+  const { ledger, hospitals, master, exportData, importData, resetToSeed, firebaseReady, firebaseError, statsMemo, setStatsMemo } = useData();
   const fileRef = useRef();
   const [slackUrl, setSlackUrl] = useLocalStorage('billing_slack_url', '');
   const [notifyEmail, setNotifyEmail] = useLocalStorage('billing_notify_email', '');
@@ -265,6 +265,23 @@ const Settings = () => {
           <p>컬렉션: <span className="font-mono text-gray-600">billing_ledger, billing_hospitals, billing_master</span></p>
           <p>모드: {firebaseReady && !firebaseError ? '실시간 동기화 (Firestore + localStorage 캐시)' : 'localStorage 단독 모드'}</p>
         </div>
+      </div>
+
+      {/* 통계 메모 */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-bold text-gray-800 mb-4">통계 페이지 메모</h3>
+        <p className="text-xs text-gray-500 mb-2">통계 페이지 이월 배너 아래에 표시됩니다. 공유 페이지(#/stats)에도 반영됩니다.</p>
+        <textarea
+          value={statsMemo}
+          onChange={e => setStatsMemo(e.target.value)}
+          placeholder="예: 세브란스병원은 매월 익월 청구 (발생월+1~2개월 후 청구서 발행)"
+          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm min-h-[80px] resize-y"
+        />
+        {statsMemo && (
+          <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700 whitespace-pre-wrap">
+            미리보기: {statsMemo}
+          </div>
+        )}
       </div>
 
       {/* 데이터 관리 */}

@@ -30,7 +30,7 @@ function ChangeIndicator({ change, unit = '' }) {
 }
 
 const Statistics = () => {
-  const { invoices } = useData();
+  const { invoices, statsMemo } = useData();
   const [activeSection, setActiveSection] = useState('qty');
   const hospitalMeta = HOSPITAL_META;
 
@@ -60,8 +60,8 @@ const Statistics = () => {
         ))}
       </div>
 
-      {activeSection === 'qty' && <QtySection invoices={invoices} hospitalMeta={hospitalMeta} />}
-      {activeSection === 'revenue' && <RevenueSection invoices={invoices} hospitalMeta={hospitalMeta} />}
+      {activeSection === 'qty' && <QtySection invoices={invoices} hospitalMeta={hospitalMeta} statsMemo={statsMemo} />}
+      {activeSection === 'revenue' && <RevenueSection invoices={invoices} hospitalMeta={hospitalMeta} statsMemo={statsMemo} />}
       {activeSection === 'salesRep' && <SalesRepSection invoices={invoices} hospitalMeta={hospitalMeta} />}
     </div>
   );
@@ -91,7 +91,7 @@ function useCommonFilters(invoices) {
 }
 
 // 발생 vs 청구 차이 비교 배너
-function BasisComparisonBanner({ invoices, selectedYear }) {
+function BasisComparisonBanner({ invoices, selectedYear, memo }) {
   // 이월 건 찾기
   const carryovers = useMemo(() =>
     invoices.filter(i =>
@@ -142,6 +142,9 @@ function BasisComparisonBanner({ invoices, selectedYear }) {
           </div>
         ))}
       </div>
+      {memo && (
+        <p className="mt-2 pt-2 border-t border-amber-200 text-xs text-amber-700 whitespace-pre-wrap">{memo}</p>
+      )}
     </div>
   );
 }
@@ -199,7 +202,7 @@ function KpiCard({ label, value, unit, change, sub }) {
 // =============================================================================
 // 1. 청구 건수 — 누계 컬럼 추가
 // =============================================================================
-function QtySection({ invoices, hospitalMeta }) {
+function QtySection({ invoices, hospitalMeta, statsMemo }) {
   const { basisType, setBasisType, monthKey, years, selectedYear, setSelectedYear, yearData, months } = useCommonFilters(invoices);
   const [productFilter, setProductFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -298,7 +301,7 @@ function QtySection({ invoices, hospitalMeta }) {
           </select>
         </>} />
 
-      <BasisComparisonBanner invoices={invoices} selectedYear={selectedYear} basisType={basisType} />
+      <BasisComparisonBanner invoices={invoices} selectedYear={selectedYear} memo={statsMemo} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard label="거래처 수" value={hospitalStats.length} unit="곳" />
@@ -376,7 +379,7 @@ function QtySection({ invoices, hospitalMeta }) {
 // =============================================================================
 // 2. 매출 — 필터 강화 + 상급/로컬 소계 + 전월 대비
 // =============================================================================
-function RevenueSection({ invoices, hospitalMeta }) {
+function RevenueSection({ invoices, hospitalMeta, statsMemo }) {
   const { basisType, setBasisType, monthKey, years, selectedYear, setSelectedYear, yearData, months } = useCommonFilters(invoices);
   const [productFilter, setProductFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -465,7 +468,7 @@ function RevenueSection({ invoices, hospitalMeta }) {
           </select>
         </>} />
 
-      <BasisComparisonBanner invoices={invoices} selectedYear={selectedYear} basisType={basisType} />
+      <BasisComparisonBanner invoices={invoices} selectedYear={selectedYear} memo={statsMemo} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard label="총 매출 (공급가액)" value={fmt(grandRevenue)} unit="원" />
