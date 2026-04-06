@@ -308,7 +308,7 @@ const MonthlyBilling = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  {['', '거래처명', '진료과', '제품', '회사수량', '병원수량', '차이', '최종건수', '단가', '청구금액', '수량확정', '계산서', '상태', '메일'].map(h => (
+                  {['', '거래처명', '진료과', '제품', '회사수량', '병원수량', '차이', '최종건수', '단가', '청구금액', '수량확정', '계산서', '상태', '메일', ''].map(h => (
                     <th key={h} className="table-header px-3 py-3">{h}</th>
                   ))}
                 </tr>
@@ -475,10 +475,27 @@ const MonthlyBilling = () => {
                           );
                         })()}
                       </td>
+
+                      {/* 개별 삭제 */}
+                      <td className="table-cell text-center">
+                        {!isLocked && (
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`${item['거래처명']} (${item['제품명']}) 청구건을 삭제하시겠습니까?`)) {
+                                deleteLedgerEntry(item._id);
+                              }
+                            }}
+                            title="이 건 삭제"
+                            className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </td>
                     </tr>
                     {isExpanded && (
                       <tr>
-                        <td colSpan={14} className="p-0 bg-gray-50 border-b border-blue-100">
+                        <td colSpan={15} className="p-0 bg-gray-50 border-b border-blue-100">
                           <BillingGuide entry={item} />
                         </td>
                       </tr>
