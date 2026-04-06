@@ -235,24 +235,39 @@ function QtySection({ invoices, hospitalMeta }) {
   };
 
   const handleExport = () => {
-    const columns = [
-      { key: 'rank', header: '순위', width: 6 },
-      { key: 'hospital', header: '거래처명', width: 25 },
-      { key: 'type', header: '구분', width: 8 },
-      { key: 'dept', header: '진료과', width: 8 },
-      ...months.flatMap((m, i) => [
-        { key: m, header: m, width: 10 },
-        { key: `cum_${m}`, header: `${m} 누계`, width: 10 },
-      ]),
-      { key: 'total', header: '합계', width: 10 },
-    ];
-    const rows = hospitalStats.map((h, idx) => {
-      const row = { rank: idx + 1, hospital: h.hospital, type: h.type, dept: h.dept, total: h.total };
-      let cum = 0;
-      months.forEach(m => { const v = h.months[m] || 0; cum += v; row[m] = v; row[`cum_${m}`] = cum; });
-      return row;
-    });
-    exportToExcel(rows, columns, `청구건수_${selectedYear}_${basisType === 'occurrence' ? '발생' : '청구'}기준.xlsx`);
+    // 발생기준/청구기준 각각 시트 생성
+    const buildSheet = (basis) => {
+      const mk = basis === 'occurrence' ? 'occurrenceMonth' : 'billingMonth';
+      const label = basis === 'occurrence' ? '발생기준' : '청구기준';
+      let baseData = invoices.filter(i => (i[mk] || '').startsWith(selectedYear));
+      if (productFilter) baseData = baseData.filter(i => i.product === productFilter);
+      if (typeFilter) baseData = baseData.filter(i => (hospitalMeta[i.hospital] || {}).type === typeFilter);
+      if (deptFilter) baseData = baseData.filter(i => i.department === deptFilter);
+      const ms = [...new Set(baseData.map(i => i[mk]))].filter(Boolean).sort();
+      const map = {};
+      baseData.forEach(item => {
+        const h = item.hospital; if (!h) return;
+        const meta = hospitalMeta[h] || {};
+        if (!map[h]) map[h] = { hospital: h, type: meta.type || '', dept: meta.department || '', total: 0, months: {} };
+        map[h].months[item[mk]] = (map[h].months[item[mk]] || 0) + (item.finalQty || 0);
+        map[h].total += item.finalQty || 0;
+      });
+      const stats = Object.values(map).sort((a, b) => b.total - a.total);
+      const columns = [
+        { key: 'rank', header: '순위', width: 6 }, { key: 'hospital', header: '거래처명', width: 25 },
+        { key: 'type', header: '구분', width: 8 }, { key: 'dept', header: '진료과', width: 8 },
+        ...ms.flatMap(m => [{ key: m, header: m, width: 10 }, { key: `cum_${m}`, header: `${m} 누계`, width: 10 }]),
+        { key: 'total', header: '합계', width: 10 },
+      ];
+      const rows = stats.map((h, idx) => {
+        const row = { rank: idx + 1, hospital: h.hospital, type: h.type, dept: h.dept, total: h.total };
+        let cum = 0;
+        ms.forEach(m => { const v = h.months[m] || 0; cum += v; row[m] = v; row[`cum_${m}`] = cum; });
+        return row;
+      });
+      return { name: label, data: rows, columns };
+    };
+    exportMultiSheet([buildSheet('occurrence'), buildSheet('billing')], `청구건수_${selectedYear}.xlsx`);
   };
 
   return (
@@ -395,16 +410,18 @@ function RevenueSection({ invoices, hospitalMeta }) {
   const revChange = calcChange(lastMonthRev, prevMonthRev);
 
   const handleExport = () => {
+    // 상세 시트: 발생월+청구월 둘 다 포함
     const detailColumns = [
       { key: 'hospital', header: '거래처명', width: 25 }, { key: 'type', header: '구분', width: 8 },
-      { key: 'month', header: basisType === 'occurrence' ? '발생월' : '청구월', width: 10 },
+      { key: 'occMonth', header: '발생월', width: 10 }, { key: 'billMonth', header: '청구월', width: 10 },
       { key: 'product', header: '제품', width: 8 }, { key: 'finalQty', header: '건수', width: 8 },
       { key: 'unitPrice', header: '단가', width: 12 }, { key: 'supplyAmount', header: '공급가', width: 12 },
       { key: 'tax', header: '부가세', width: 12 }, { key: 'totalAmount', header: '청구금액', width: 12 },
       { key: 'status', header: '상태', width: 8 },
     ];
-    const detailRows = filtered.sort((a, b) => (a.hospital || '').localeCompare(b.hospital) || (a[monthKey] || '').localeCompare(b[monthKey]))
-      .map(item => ({ hospital: item.hospital, type: (hospitalMeta[item.hospital] || {}).type || '', month: item[monthKey],
+    const detailRows = filtered.sort((a, b) => (a.hospital || '').localeCompare(b.hospital) || (a.occurrenceMonth || '').localeCompare(b.occurrenceMonth || ''))
+      .map(item => ({ hospital: item.hospital, type: (hospitalMeta[item.hospital] || {}).type || '',
+        occMonth: item.occurrenceMonth, billMonth: item.billingMonth,
         product: item.product, finalQty: item.finalQty, unitPrice: item.unitPrice, supplyAmount: item.supplyAmount, tax: item.tax, totalAmount: item.totalAmount, status: item.status }));
     const summaryColumns = [
       { key: 'rank', header: '순위', width: 6 }, { key: 'hospital', header: '거래처명', width: 25 }, { key: 'type', header: '구분', width: 8 },
@@ -417,7 +434,7 @@ function RevenueSection({ invoices, hospitalMeta }) {
     exportMultiSheet([
       { name: '누적', data: summaryRows, columns: summaryColumns },
       { name: '월별상세', data: detailRows, columns: detailColumns },
-    ], `매출_${selectedYear}_${basisType === 'occurrence' ? '발생' : '청구'}기준.xlsx`);
+    ], `매출_${selectedYear}.xlsx`);
   };
 
   return (
@@ -556,19 +573,20 @@ function SalesRepSection({ invoices, hospitalMeta }) {
     }));
     const detailColumns = [
       { key: 'rep', header: '담당자', width: 10 }, { key: 'hospital', header: '거래처명', width: 25 }, { key: 'type', header: '구분', width: 8 },
-      { key: 'month', header: basisType === 'occurrence' ? '발생월' : '청구월', width: 10 },
+      { key: 'occMonth', header: '발생월', width: 10 }, { key: 'billMonth', header: '청구월', width: 10 },
       { key: 'product', header: '제품', width: 8 }, { key: 'finalQty', header: '건수', width: 8 },
       { key: 'unitPrice', header: '단가', width: 12 }, { key: 'supplyAmount', header: '공급가', width: 12 },
       { key: 'totalAmount', header: '청구금액', width: 12 }, { key: 'status', header: '상태', width: 8 },
     ];
     const detailRows = filtered.filter(i => (hospitalMeta[i.hospital] || {}).salesRep)
-      .sort((a, b) => ((hospitalMeta[a.hospital]||{}).salesRep||'').localeCompare((hospitalMeta[b.hospital]||{}).salesRep||'') || (a.hospital||'').localeCompare(b.hospital) || (a[monthKey]||'').localeCompare(b[monthKey]))
-      .map(i => ({ rep: (hospitalMeta[i.hospital]||{}).salesRep||'', hospital: i.hospital, type: (hospitalMeta[i.hospital]||{}).type||'', month: i[monthKey],
+      .sort((a, b) => ((hospitalMeta[a.hospital]||{}).salesRep||'').localeCompare((hospitalMeta[b.hospital]||{}).salesRep||'') || (a.hospital||'').localeCompare(b.hospital) || (a.occurrenceMonth||'').localeCompare(b.occurrenceMonth||''))
+      .map(i => ({ rep: (hospitalMeta[i.hospital]||{}).salesRep||'', hospital: i.hospital, type: (hospitalMeta[i.hospital]||{}).type||'',
+        occMonth: i.occurrenceMonth, billMonth: i.billingMonth,
         product: i.product, finalQty: i.finalQty, unitPrice: i.unitPrice, supplyAmount: i.supplyAmount, totalAmount: i.totalAmount, status: i.status }));
     exportMultiSheet([
       { name: '담당자별누적', data: summaryRows, columns: summaryColumns },
       { name: '병원별상세', data: detailRows, columns: detailColumns },
-    ], `영업담당자_${selectedYear}_${basisType === 'occurrence' ? '발생' : '청구'}기준.xlsx`);
+    ], `영업담당자_${selectedYear}.xlsx`);
   };
 
   return (
