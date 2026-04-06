@@ -110,18 +110,40 @@ function useYearTab(invoices, basisType) {
 }
 
 function BasisBanner({ invoices, selectedYear }) {
-  const occQty = useMemo(() => invoices.filter(i => (i.occurrenceMonth||'').startsWith(selectedYear)).reduce((s,i) => s + (i.finalQty||0), 0), [invoices, selectedYear]);
-  const billQty = useMemo(() => invoices.filter(i => (i.billingMonth||'').startsWith(selectedYear)).reduce((s,i) => s + (i.finalQty||0), 0), [invoices, selectedYear]);
-  const diff = occQty - billQty;
-  if (diff === 0) return null;
-  const carryovers = invoices.filter(i => i.occurrenceMonth !== i.billingMonth && ((i.occurrenceMonth||'').startsWith(selectedYear) || (i.billingMonth||'').startsWith(selectedYear)));
-  const hospNames = [...new Set(carryovers.map(i => i.hospital))];
+  const carryovers = useMemo(() =>
+    invoices.filter(i => i.occurrenceMonth !== i.billingMonth &&
+      ((i.occurrenceMonth||'').startsWith(selectedYear) || (i.billingMonth||'').startsWith(selectedYear))),
+    [invoices, selectedYear]
+  );
+  if (carryovers.length === 0) return null;
+
+  const patterns = useMemo(() => {
+    const map = {};
+    carryovers.forEach(c => {
+      const key = `${c.occurrenceMonth} → ${c.billingMonth}`;
+      if (!map[key]) map[key] = { occMonth: c.occurrenceMonth, billMonth: c.billingMonth, hospitals: new Set(), qty: 0 };
+      map[key].hospitals.add(c.hospital);
+      map[key].qty += c.finalQty || 0;
+    });
+    return Object.values(map).sort((a, b) => a.occMonth.localeCompare(b.occMonth));
+  }, [carryovers]);
+
+  const fm = (m) => { const [y, mo] = (m||'').split('-'); return `${y?.slice(2)}.${mo}`; };
+
   return (
-    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs">
-      <span className="font-semibold text-amber-700">기준별 차이:</span>
-      <span className="ml-1">발생 <span className="font-bold">{fmt(occQty)}</span>건 vs 청구 <span className="font-bold">{fmt(billQty)}</span>건</span>
-      <span className={`ml-1 font-bold ${diff > 0 ? 'text-red-500' : 'text-blue-500'}`}>({diff > 0 ? '+' : ''}{fmt(diff)}건)</span>
-      {hospNames.length > 0 && <p className="mt-1 text-amber-600">원인: {hospNames.join(', ')} 청구 이월</p>}
+    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+      <p className="text-xs font-semibold text-amber-700 mb-2">청구 이월 내역</p>
+      <div className="space-y-1">
+        {patterns.map((p, i) => (
+          <div key={i} className="flex items-center gap-2 text-xs">
+            <span className="bg-white border border-amber-300 rounded px-2 py-0.5 font-medium text-gray-700">{fm(p.occMonth)} 발생</span>
+            <span className="text-amber-400">→</span>
+            <span className="bg-white border border-amber-300 rounded px-2 py-0.5 font-medium text-gray-700">{fm(p.billMonth)} 청구</span>
+            <span className="text-gray-500">{[...p.hospitals].join(', ')}</span>
+            {p.qty > 0 && <span className="text-amber-600 font-medium">{fmt(p.qty)}건</span>}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

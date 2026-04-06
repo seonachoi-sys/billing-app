@@ -91,43 +91,57 @@ function useCommonFilters(invoices) {
 }
 
 // 발생 vs 청구 차이 비교 배너
-function BasisComparisonBanner({ invoices, selectedYear, basisType }) {
-  const occData = useMemo(() => {
-    return invoices.filter(i => (i.occurrenceMonth || '').startsWith(selectedYear));
-  }, [invoices, selectedYear]);
-  const billData = useMemo(() => {
-    return invoices.filter(i => (i.billingMonth || '').startsWith(selectedYear));
-  }, [invoices, selectedYear]);
-
-  const occQty = occData.reduce((s, i) => s + (i.finalQty || 0), 0);
-  const billQty = billData.reduce((s, i) => s + (i.finalQty || 0), 0);
-  const diff = occQty - billQty;
-
-  if (diff === 0) return null;
-
-  // 차이 원인: 이월 건 찾기
-  const carryovers = invoices.filter(i =>
-    i.occurrenceMonth !== i.billingMonth &&
-    ((i.occurrenceMonth || '').startsWith(selectedYear) || (i.billingMonth || '').startsWith(selectedYear))
+function BasisComparisonBanner({ invoices, selectedYear }) {
+  // 이월 건 찾기
+  const carryovers = useMemo(() =>
+    invoices.filter(i =>
+      i.occurrenceMonth !== i.billingMonth &&
+      ((i.occurrenceMonth || '').startsWith(selectedYear) || (i.billingMonth || '').startsWith(selectedYear))
+    ),
+    [invoices, selectedYear]
   );
-  const carryoverHospitals = [...new Set(carryovers.map(i => i.hospital))];
+
+  if (carryovers.length === 0) return null;
+
+  // 이월 패턴별 그룹: "발생월 → 청구월" 단위로 묶기
+  const patterns = useMemo(() => {
+    const map = {};
+    carryovers.forEach(c => {
+      const key = `${c.occurrenceMonth} → ${c.billingMonth}`;
+      if (!map[key]) map[key] = { occMonth: c.occurrenceMonth, billMonth: c.billingMonth, hospitals: new Set(), qty: 0, count: 0 };
+      map[key].hospitals.add(c.hospital);
+      map[key].qty += c.finalQty || 0;
+      map[key].count += 1;
+    });
+    return Object.values(map).sort((a, b) => a.occMonth.localeCompare(b.occMonth));
+  }, [carryovers]);
+
+  const formatMonth = (m) => {
+    if (!m) return '';
+    const [y, mo] = m.split('-');
+    return `${y.slice(2)}.${mo}`;
+  };
 
   return (
-    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs">
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="font-semibold text-amber-700">기준별 차이:</span>
-        <span className="text-gray-700">발생기준 <span className="font-bold">{fmt(occQty)}</span>건</span>
-        <span className="text-gray-400">vs</span>
-        <span className="text-gray-700">청구기준 <span className="font-bold">{fmt(billQty)}</span>건</span>
-        <span className={`font-bold ${diff > 0 ? 'text-red-500' : 'text-blue-500'}`}>
-          (차이 {diff > 0 ? '+' : ''}{fmt(diff)}건)
-        </span>
+    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+      <p className="text-xs font-semibold text-amber-700 mb-2">청구 이월 내역</p>
+      <div className="space-y-1">
+        {patterns.map((p, i) => (
+          <div key={i} className="flex items-center gap-2 text-xs">
+            <span className="bg-white border border-amber-300 rounded px-2 py-0.5 font-medium text-gray-700">
+              {formatMonth(p.occMonth)} 발생
+            </span>
+            <span className="text-amber-400">→</span>
+            <span className="bg-white border border-amber-300 rounded px-2 py-0.5 font-medium text-gray-700">
+              {formatMonth(p.billMonth)} 청구
+            </span>
+            <span className="text-gray-500">
+              {[...p.hospitals].join(', ')}
+            </span>
+            {p.qty > 0 && <span className="text-amber-600 font-medium">{fmt(p.qty)}건</span>}
+          </div>
+        ))}
       </div>
-      {carryoverHospitals.length > 0 && (
-        <p className="mt-1 text-amber-600">
-          원인: {carryoverHospitals.join(', ')} 청구 이월 ({carryovers.length}건의 발생월≠청구월)
-        </p>
-      )}
     </div>
   );
 }
