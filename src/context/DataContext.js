@@ -161,7 +161,15 @@ export function DataProvider({ children }) {
         };
 
         const syncedLedger = await syncCollection(COLLECTIONS.LEDGER, fbLedger, 'billing_ledger', true);
-        const syncedHospitals = await syncCollection(COLLECTIONS.HOSPITALS, fbHospitals, 'billing_hospitals');
+
+        // 병원 데이터 복구: 영문 필드명(seed 오염)이면 원래 시드로 교체
+        let hospitalsToSync = fbHospitals;
+        if (fbHospitals && fbHospitals.length > 0 && !fbHospitals[0]['거래처명'] && fbHospitals[0]['name']) {
+          console.warn('⚠️ 병원 데이터 영문 필드 감지 — 원래 시드로 복원');
+          await replaceCollection(COLLECTIONS.HOSPITALS, SEED.hospitals).catch(console.error);
+          hospitalsToSync = SEED.hospitals;
+        }
+        const syncedHospitals = await syncCollection(COLLECTIONS.HOSPITALS, hospitalsToSync, 'billing_hospitals');
         const syncedMaster = await syncCollection(COLLECTIONS.MASTER, fbMaster, 'billing_master');
 
         if (syncedLedger.length > 0) setLedger(syncedLedger);
