@@ -8,6 +8,7 @@ import {
   deleteDocument, batchWriteCollection, replaceCollection,
   subscribeCollection, migrateToFirestore, saveSingleDoc,
 } from '../services/firestoreService';
+import { checkSeedStatus, executeSeed, SEED_COUNTS } from '../services/seedService';
 
 const DataContext = createContext();
 
@@ -64,6 +65,9 @@ export function DataProvider({ children }) {
   const [closedMonths, setClosedMonths] = useLocalStorage('billing_closed_months', []);
   const [firebaseReady, setFirebaseReady] = useState(false);
   const [firebaseError, setFirebaseError] = useState(null);
+  const [invoices, setInvoices] = useState([]);
+  const [reconciliation, setReconciliation] = useState([]);
+  const [seedingStatus, setSeedingStatus] = useState(null); // null | { message, percent }
   const notificationSent = useRef(false);
   const unsubscribes = useRef([]);
   const isInitializing = useRef(true); // 초기화 중 구독 콜백 무시 플래그
@@ -97,10 +101,35 @@ export function DataProvider({ children }) {
 
         if (!mounted) return;
 
-        // 2. localStorage → Firestore 마이그레이션 (최초 1회)
+        // 2. 시드 데이터 확인 및 실행
+        const seedDone = await checkSeedStatus();
+        if (!seedDone) {
+          setSeedingStatus({ message: `과거 데이터를 불러오는 중... (${SEED_COUNTS.invoices}건)`, percent: 0 });
+          const seedResult = await executeSeed((msg, pct) => {
+            if (mounted) setSeedingStatus({ message: msg, percent: pct });
+          });
+          if (mounted) {
+            setInvoices(seedResult.invoices);
+            setReconciliation(seedResult.reconciliation);
+            // hospitals는 기존 로직에서 로드됨
+            setSeedingStatus(null);
+          }
+        } else {
+          // 이미 시딩 완료 → Firestore에서 invoices/reconciliation 로드
+          const [fbInvoices, fbRecon] = await Promise.all([
+            fetchCollection(COLLECTIONS.INVOICES),
+            fetchCollection(COLLECTIONS.RECONCILIATION),
+          ]);
+          if (mounted) {
+            if (fbInvoices) setInvoices(fbInvoices);
+            if (fbRecon) setReconciliation(fbRecon);
+          }
+        }
+
+        // 3. localStorage → Firestore 마이그레이션 (최초 1회)
         await migrateToFirestore();
 
-        // 3. Firestore에서 초기 데이터 로드
+        // 4. Firestore에서 초기 데이터 로드
         const [fbLedger, fbHospitals, fbMaster] = await Promise.all([
           Promise.resolve(testResult), // 이미 가져온 ledger 재사용
           fetchCollection(COLLECTIONS.HOSPITALS),
@@ -482,9 +511,29 @@ export function DataProvider({ children }) {
     updateCostSettings, updateHospitalCost,
     buildMonthlySummary, syncMonthlySummary,
     closeMonth, openMonth, isMonthClosed,
+    invoices, reconciliation, seedingStatus,
   };
 
-  return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
+  return (
+    <DataContext.Provider value={value}>
+      {seedingStatus && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 text-center">
+            <div className="animate-spin w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4" />
+            <p className="text-lg font-semibold text-gray-800 mb-2">{seedingStatus.message}</p>
+            <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
+              <div
+                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${seedingStatus.percent}%` }}
+              />
+            </div>
+            <p className="text-xs text-gray-400 mt-2">{seedingStatus.percent}%</p>
+          </div>
+        </div>
+      )}
+      {children}
+    </DataContext.Provider>
+  );
 }
 
 export function useData() {

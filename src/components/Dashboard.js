@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { fmt, calculateDday, isOverdue } from '../utils/calculations';
+import { exportToExcel } from '../utils/exportExcel';
 
 const Dashboard = () => {
   const { ledger } = useData();
@@ -164,8 +165,168 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* 건수 대사 섹션 */}
+      <ReconciliationSection />
     </div>
   );
 };
+
+// =============================================================================
+// Admin vs 병원 건수 대사 — 병원별 누적
+// =============================================================================
+function ReconciliationSection() {
+  const { reconciliation } = useData();
+
+  const currentMonth = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
+
+  // 병원별 누적 집계
+  const hospitalStats = useMemo(() => {
+    const map = {};
+    reconciliation.forEach(r => {
+      if (!map[r.hospital]) map[r.hospital] = { hospital: r.hospital, admin: 0, hospital_: 0, diff: 0, months: 0, unconfirmed: 0 };
+      map[r.hospital].admin += r.adminQty || 0;
+      map[r.hospital].hospital_ += (r.hospitalQty != null ? r.hospitalQty : 0);
+      if (r.diff != null) map[r.hospital].diff += r.diff;
+      map[r.hospital].months += 1;
+      if (r.hospitalQty == null) map[r.hospital].unconfirmed += 1;
+    });
+    return Object.values(map)
+      .map(h => ({ ...h, diffRate: h.hospital_ > 0 ? ((h.diff / h.hospital_) * 100).toFixed(1) : '0.0' }))
+      .sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+  }, [reconciliation]);
+
+  // 요약
+  const totalDiff = hospitalStats.reduce((s, h) => s + Math.abs(h.diff), 0);
+  const currentMonthDiff = useMemo(() =>
+    reconciliation.filter(r => r.month === currentMonth && r.diff != null)
+      .reduce((s, r) => s + Math.abs(r.diff), 0),
+    [reconciliation, currentMonth]
+  );
+  const unconfirmedCount = reconciliation.filter(r => r.hospitalQty == null).length;
+
+  // 월별 세부 데이터 (엑셀용)
+  const allMonths = useMemo(() =>
+    [...new Set(reconciliation.map(r => r.month))].filter(Boolean).sort(),
+    [reconciliation]
+  );
+
+  const handleExport = () => {
+    // 병원별 월별 매트릭스 생성
+    const monthMap = {};
+    reconciliation.forEach(r => {
+      if (!monthMap[r.hospital]) monthMap[r.hospital] = {};
+      monthMap[r.hospital][r.month] = { admin: r.adminQty, hosp: r.hospitalQty, diff: r.diff };
+    });
+
+    const columns = [
+      { key: 'hospital', header: '거래처명', width: 25 },
+      ...allMonths.flatMap(m => [
+        { key: `${m}_admin`, header: `${m} Admin`, width: 10 },
+        { key: `${m}_hosp`, header: `${m} 병원`, width: 10 },
+        { key: `${m}_diff`, header: `${m} 차이`, width: 8 },
+      ]),
+      { key: 'totalAdmin', header: 'Admin 합계', width: 12 },
+      { key: 'totalHosp', header: '병원 합계', width: 12 },
+      { key: 'totalDiff', header: '누적 차이', width: 10 },
+      { key: 'diffRate', header: '차이율(%)', width: 10 },
+    ];
+
+    const rows = hospitalStats.map(h => {
+      const row = { hospital: h.hospital, totalAdmin: h.admin, totalHosp: h.hospital_, totalDiff: h.diff, diffRate: h.diffRate + '%' };
+      allMonths.forEach(m => {
+        const d = monthMap[h.hospital]?.[m];
+        row[`${m}_admin`] = d?.admin ?? '';
+        row[`${m}_hosp`] = d?.hosp ?? '';
+        row[`${m}_diff`] = d?.diff ?? '';
+      });
+      return row;
+    });
+    exportToExcel(rows, columns, `건수대사_상세.xlsx`);
+  };
+
+  if (reconciliation.length === 0) return null;
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-bold text-gray-800">Admin vs 병원 건수 대사</h2>
+
+      {/* 요약 카드 */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-white rounded-lg shadow p-4">
+          <p className="text-xs text-gray-500">이번 달 차이</p>
+          <p className={`text-2xl font-bold ${currentMonthDiff > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+            {currentMonthDiff}<span className="text-sm font-normal text-gray-400">건</span>
+          </p>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <p className="text-xs text-gray-500">누적 차이</p>
+          <p className="text-2xl font-bold text-gray-800">{totalDiff}<span className="text-sm font-normal text-gray-400">건</span></p>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <p className="text-xs text-gray-500">미확인</p>
+          <p className={`text-2xl font-bold ${unconfirmedCount > 0 ? 'text-yellow-600' : 'text-green-600'}`}>
+            {unconfirmedCount}<span className="text-sm font-normal text-gray-400">건</span>
+          </p>
+        </div>
+      </div>
+
+      {/* 누적 테이블 */}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="px-5 py-3 border-b flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-gray-700">
+            병원별 누적 건수 대사
+            <span className="ml-2 text-xs font-normal text-gray-400">차이 큰 순</span>
+          </h3>
+          <button onClick={handleExport} className="text-xs bg-green-500 text-white px-3 py-1.5 rounded hover:bg-green-600">
+            엑셀 다운로드
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="table-header px-4 py-3 text-left">거래처명</th>
+                <th className="table-header px-3 py-3 text-right">Admin</th>
+                <th className="table-header px-3 py-3 text-right">병원</th>
+                <th className="table-header px-3 py-3 text-right">차이</th>
+                <th className="table-header px-3 py-3 text-right">차이율</th>
+                <th className="table-header px-3 py-3 text-right">개월</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {hospitalStats.map(h => (
+                <tr key={h.hospital} className={`hover:bg-gray-50 ${Math.abs(h.diff) > 10 ? 'bg-orange-50' : ''}`}>
+                  <td className="px-4 py-3 font-medium whitespace-nowrap">
+                    {h.hospital}
+                    {h.unconfirmed > 0 && (
+                      <span className="ml-1.5 text-xs text-yellow-500">({h.unconfirmed}건 미확인)</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-3 text-right">{fmt(h.admin)}</td>
+                  <td className="px-3 py-3 text-right">{fmt(h.hospital_)}</td>
+                  <td className={`px-3 py-3 text-right font-bold ${
+                    h.diff > 0 ? 'text-red-500' : h.diff < 0 ? 'text-green-600' : ''
+                  }`}>
+                    {h.diff > 0 ? '+' : ''}{h.diff}
+                  </td>
+                  <td className={`px-3 py-3 text-right ${
+                    Math.abs(parseFloat(h.diffRate)) > 10 ? 'text-red-500 font-medium' : 'text-gray-500'
+                  }`}>
+                    {h.diffRate}%
+                  </td>
+                  <td className="px-3 py-3 text-right text-gray-500">{h.months}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default Dashboard;

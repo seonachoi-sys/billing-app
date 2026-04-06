@@ -18,6 +18,9 @@ export const COLLECTIONS = {
   COST_SETTINGS: 'billing_cost_settings',
   HOSPITAL_COSTS: 'billing_hospital_costs',
   MONTHLY_SUMMARY: 'billing_monthly_summary',
+  INVOICES: 'billing_invoices',
+  RECONCILIATION: 'billing_reconciliation',
+  META: 'billing_meta',
 };
 
 // --- 범용 CRUD ---
@@ -143,6 +146,37 @@ export function subscribeCollection(collectionName, callback) {
   }, (err) => {
     console.error(`Firestore 구독 오류 (${collectionName}):`, err);
   });
+}
+
+/** 컬렉션 전체 삭제 */
+export async function deleteCollection(collectionName) {
+  try {
+    const snap = await withTimeout(getDocs(collection(db, collectionName)), 15000);
+    const BATCH_SIZE = 450;
+    const docs = snap.docs;
+    for (let i = 0; i < docs.length; i += BATCH_SIZE) {
+      const batch = writeBatch(db);
+      docs.slice(i, i + BATCH_SIZE).forEach(d => batch.delete(d.ref));
+      await withTimeout(batch.commit(), 15000);
+    }
+    return docs.length;
+  } catch (err) {
+    console.error(`Firestore 컬렉션 삭제 실패 (${collectionName}):`, err);
+    return -1;
+  }
+}
+
+/** 단일 문서 읽기 */
+export async function fetchSingleDoc(collectionName, docId) {
+  try {
+    const { getDoc } = await import('firebase/firestore');
+    const snap = await withTimeout(getDoc(doc(db, collectionName, docId)));
+    if (snap.exists()) return { ...snap.data(), _id: snap.id };
+    return null;
+  } catch (err) {
+    console.error(`Firestore 문서 읽기 실패 (${collectionName}/${docId}):`, err);
+    return null;
+  }
 }
 
 // --- 마이그레이션: localStorage → Firestore ---

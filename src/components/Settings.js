@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import useLocalStorage from '../hooks/useLocalStorage';
 import { isOverdue, fmt } from '../utils/calculations';
+import { resetSeedStatus, SEED_COUNTS } from '../services/seedService';
 
 // 계약 만료일 계산
 function getExpiryDate(contract) {
@@ -158,6 +159,16 @@ const Settings = () => {
     }
   };
 
+  const handleReseed = async () => {
+    if (!window.confirm('기존 데이터가 모두 삭제되고 초기 데이터로 복원됩니다.\n계속하시겠습니까?')) return;
+    try {
+      await resetSeedStatus();
+      window.location.reload();
+    } catch (err) {
+      alert('시드 상태 초기화 실패: ' + err.message);
+    }
+  };
+
   const storageUsed = Object.keys(localStorage)
     .filter(k => k.startsWith('billing_'))
     .reduce((s, k) => s + (localStorage.getItem(k) || '').length, 0);
@@ -292,6 +303,10 @@ const Settings = () => {
           <button onClick={handleReset}
             className="w-full bg-red-50 text-red-600 px-4 py-3 rounded-md text-sm font-medium hover:bg-red-100 border border-red-200">
             초기 데이터로 복원
+          </button>
+          <button onClick={handleReseed}
+            className="w-full bg-orange-50 text-orange-600 px-4 py-3 rounded-md text-sm font-medium hover:bg-orange-100 border border-orange-200">
+            시드 데이터 재설정 ({SEED_COUNTS.invoices}건 인보이스 + {SEED_COUNTS.reconciliation}건 대사)
           </button>
         </div>
       </div>
