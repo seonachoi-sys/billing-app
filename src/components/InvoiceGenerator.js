@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
-import { fmt } from '../utils/calculations';
+import { fmt, calculateVAT } from '../utils/calculations';
 
 const STAMP_URL = process.env.PUBLIC_URL + '/stamp.jpg';
 
@@ -122,8 +122,12 @@ const InvoiceGenerator = () => {
   };
 
   const totalAmount = selectedItems.reduce((s, i) => s + (i['청구금액'] || 0), 0);
-  const totalSupply = selectedItems.reduce((s, i) => s + (i['공급가'] || 0), 0);
-  const totalVat = selectedItems.reduce((s, i) => s + (i['부가세'] || 0), 0);
+  // 공급가액/세액: 각 행의 공급단가 × 수량 기준으로 합산
+  const totalSupply = selectedItems.reduce((s, i) => {
+    const supplyUnit = calculateVAT(i['단가'] || 0).supply;
+    return s + supplyUnit * (i['최종건수'] || 0);
+  }, 0);
+  const totalVat = totalAmount - totalSupply;
   const receiverName = selectedItems.length > 0 ? selectedItems[0]['거래처명'] : '';
   const multipleClients = new Set(selectedItems.map(i => i['거래처명'])).size > 1;
 
@@ -360,17 +364,25 @@ const InvoiceGenerator = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedItems.map((item, i) => (
-                    <tr key={i}>
-                      <td style={{ textAlign: 'center' }}>{i + 1}</td>
-                      <td style={{ textAlign: 'center' }}>{productFullName(item['제품명'])}</td>
-                      <td style={{ textAlign: 'center', fontSize: '8.5pt' }}>{getBillingPeriod(item['청구기준'])}</td>
-                      <td style={{ textAlign: 'center' }}>{item['최종건수']} 건</td>
-                      <td style={{ textAlign: 'right' }}>{fmt(item['단가'])}</td>
-                      <td style={{ textAlign: 'right' }}>{fmt(item['공급가'])}</td>
-                      <td style={{ textAlign: 'right' }}>{fmt(item['부가세'])}</td>
-                    </tr>
-                  ))}
+                  {selectedItems.map((item, i) => {
+                    // 단가: VAT 제외 공급단가, 공급가액 = 수량 × 공급단가
+                    const unitVat = calculateVAT(item['단가'] || 0);
+                    const supplyUnitPrice = unitVat.supply;
+                    const qty = item['최종건수'] || 0;
+                    const lineSupply = supplyUnitPrice * qty;
+                    const lineVat = item['청구금액'] - lineSupply;
+                    return (
+                      <tr key={i}>
+                        <td style={{ textAlign: 'center' }}>{i + 1}</td>
+                        <td style={{ textAlign: 'center' }}>{productFullName(item['제품명'])}</td>
+                        <td style={{ textAlign: 'center', fontSize: '8.5pt' }}>{getBillingPeriod(item['청구기준'])}</td>
+                        <td style={{ textAlign: 'center' }}>{qty} 건</td>
+                        <td style={{ textAlign: 'right' }}>{fmt(supplyUnitPrice)}</td>
+                        <td style={{ textAlign: 'right' }}>{fmt(lineSupply)}</td>
+                        <td style={{ textAlign: 'right' }}>{fmt(lineVat)}</td>
+                      </tr>
+                    );
+                  })}
                   {/* 빈 행 채우기 (최소 5행) */}
                   {Array.from({ length: Math.max(0, 5 - selectedItems.length) }).map((_, i) => (
                     <tr key={`empty-${i}`}>
