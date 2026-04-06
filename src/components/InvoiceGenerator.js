@@ -122,12 +122,9 @@ const InvoiceGenerator = () => {
   };
 
   const totalAmount = selectedItems.reduce((s, i) => s + (i['청구금액'] || 0), 0);
-  // 공급가액/세액: 각 행의 공급단가 × 수량 기준으로 합산
-  const totalSupply = selectedItems.reduce((s, i) => {
-    const supplyUnit = calculateVAT(i['단가'] || 0).supply;
-    return s + supplyUnit * (i['최종건수'] || 0);
-  }, 0);
-  const totalVat = totalAmount - totalSupply;
+  // 국세청 규칙: 각 행의 청구금액(총액) 기준으로 공급가액/세액 계산 후 합산
+  const totalSupply = selectedItems.reduce((s, i) => s + calculateVAT(i['청구금액'] || 0).supply, 0);
+  const totalVat = selectedItems.reduce((s, i) => s + calculateVAT(i['청구금액'] || 0).vat, 0);
   const receiverName = selectedItems.length > 0 ? selectedItems[0]['거래처명'] : '';
   const multipleClients = new Set(selectedItems.map(i => i['거래처명'])).size > 1;
 
@@ -365,12 +362,11 @@ const InvoiceGenerator = () => {
                 </thead>
                 <tbody>
                   {selectedItems.map((item, i) => {
-                    // 단가: VAT 제외 공급단가, 공급가액 = 수량 × 공급단가
-                    const unitVat = calculateVAT(item['단가'] || 0);
-                    const supplyUnitPrice = unitVat.supply;
+                    // 국세청 규칙: 총액(청구금액) 기준으로 공급가액/세액 계산
+                    const lineTotal = item['청구금액'] || 0;
+                    const lineVatResult = calculateVAT(lineTotal);
                     const qty = item['최종건수'] || 0;
-                    const lineSupply = supplyUnitPrice * qty;
-                    const lineVat = item['청구금액'] - lineSupply;
+                    const supplyUnitPrice = calculateVAT(item['단가'] || 0).supply;
                     return (
                       <tr key={i}>
                         <td style={{ textAlign: 'center' }}>{i + 1}</td>
@@ -378,8 +374,8 @@ const InvoiceGenerator = () => {
                         <td style={{ textAlign: 'center', fontSize: '8.5pt' }}>{getBillingPeriod(item['청구기준'])}</td>
                         <td style={{ textAlign: 'center' }}>{qty} 건</td>
                         <td style={{ textAlign: 'right' }}>{fmt(supplyUnitPrice)}</td>
-                        <td style={{ textAlign: 'right' }}>{fmt(lineSupply)}</td>
-                        <td style={{ textAlign: 'right' }}>{fmt(lineVat)}</td>
+                        <td style={{ textAlign: 'right' }}>{fmt(lineVatResult.supply)}</td>
+                        <td style={{ textAlign: 'right' }}>{fmt(lineVatResult.vat)}</td>
                       </tr>
                     );
                   })}
