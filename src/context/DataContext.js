@@ -23,11 +23,13 @@ function dedup(items) {
   return Array.from(seen.values());
 }
 
-/** ledger 전용: 비즈니스 키(거래처+제품+청구기준) 기반 중복 제거 */
+/** ledger 전용: 비즈니스 키(거래처+제품+청구기준+발생기준) 기반 중복 제거 */
 function dedupLedger(items) {
   const seen = new Map();
   items.forEach(item => {
-    const bizKey = `${item['거래처명']}||${item['제품명']}||${item['청구기준']}`;
+    // 발생기준 포함하여 이월 청구(발생월≠청구월)를 별도 항목으로 인식
+    const occMonth = item['발생기준'] || item['청구기준'];
+    const bizKey = `${item['거래처명']}||${item['제품명']}||${item['청구기준']}||${occMonth}`;
     const existing = seen.get(bizKey);
     if (!existing) {
       seen.set(bizKey, item);

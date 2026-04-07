@@ -594,14 +594,25 @@ const MonthlyBilling = () => {
 
                       {/* 상태 */}
                       <td className="table-cell">
-                        <span className={`text-xs px-2 py-1 rounded-full ${
-                          item['채권상태'] === '청구확정' ? 'bg-blue-100 text-blue-700' :
-                          item['채권상태'] === '완납' ? 'bg-green-100 text-green-700' :
-                          item['최종건수'] === 0 ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-gray-100 text-gray-600'
-                        }`}>
-                          {item['최종건수'] === 0 && item['채권상태'] !== '청구확정' ? '수량 입력 필요' : item['채권상태']}
-                        </span>
+                        {item['채권상태'] === '청구확정' && !isClosed ? (
+                          <button onClick={() => {
+                            if (window.confirm(`${item['거래처명']} ${item['제품명']} 청구확정을 취소하시겠습니까?`)) {
+                              updateLedgerEntry(item._id, { '채권상태': '정상' });
+                            }
+                          }}
+                            className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700 hover:bg-red-100 hover:text-red-600 transition-colors cursor-pointer"
+                            title="클릭하여 청구확정 취소">
+                            청구확정 ✕
+                          </button>
+                        ) : (
+                          <span className={`text-xs px-2 py-1 rounded-full ${
+                            item['채권상태'] === '완납' ? 'bg-green-100 text-green-700' :
+                            item['최종건수'] === 0 ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>
+                            {item['최종건수'] === 0 && item['채권상태'] !== '청구확정' ? '수량 입력 필요' : item['채권상태']}
+                          </span>
+                        )}
                       </td>
 
                       {/* 메일 발송 */}
