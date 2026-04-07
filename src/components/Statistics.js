@@ -3,6 +3,7 @@ import { useData } from '../context/DataContext';
 import { fmt } from '../utils/calculations';
 import { exportToExcel, exportMultiSheet } from '../utils/exportExcel';
 import { mergeLedgerWithSeed } from '../utils/mergeLedger';
+import { buildHospitalMeta } from '../utils/hospitalMeta';
 
 // 전월 대비 증감 계산 헬퍼
 function calcChange(current, previous) {
@@ -26,23 +27,7 @@ const Statistics = () => {
 
   const mergedLedger = useMemo(() => mergeLedgerWithSeed(ledger), [ledger]);
 
-  // hospitals(한국어 필드)에서 메타 빌드: 거래처명 → { type, department, salesRep }
-  const hospitalMeta = useMemo(() => {
-    const map = {};
-    hospitals.forEach(h => {
-      const name = h['거래처명'];
-      if (!name) return;
-      // 같은 거래처의 첫 번째 레코드 기준 (CAS/EXO 중복 시)
-      if (!map[name]) {
-        map[name] = {
-          type: h['병원구분'] || '',
-          department: h['진료과'] || '',
-          salesRep: h['담당사번'] || '',
-        };
-      }
-    });
-    return map;
-  }, [hospitals]);
+  const hospitalMeta = useMemo(() => buildHospitalMeta(hospitals), [hospitals]);
 
   const tabs = [
     { key: 'qty', label: '청구 건수' },

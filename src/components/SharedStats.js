@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { fmt } from '../utils/calculations';
 import { mergeLedgerWithSeed } from '../utils/mergeLedger';
+import { buildHospitalMeta } from '../utils/hospitalMeta';
 
 function calcChange(c, p) {
   if (p === 0 || p == null) return c > 0 ? { val: c, pct: null } : { val: 0, pct: null };
@@ -17,14 +18,7 @@ const SharedStats = () => {
   const { ledger, hospitals, firebaseReady, firebaseError, statsMemo } = useData();
   const [activeSection, setActiveSection] = useState('qty');
 
-  const hospitalMeta = useMemo(() => {
-    const map = {};
-    hospitals.forEach(h => {
-      const name = h['거래처명']; if (!name || map[name]) return;
-      map[name] = { type: h['병원구분'] || '', department: h['진료과'] || '', salesRep: h['담당사번'] || '' };
-    });
-    return map;
-  }, [hospitals]);
+  const hospitalMeta = useMemo(() => buildHospitalMeta(hospitals), [hospitals]);
 
   const mergedLedger = useMemo(() => mergeLedgerWithSeed(ledger), [ledger]);
 
