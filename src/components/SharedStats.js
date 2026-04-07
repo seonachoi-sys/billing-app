@@ -109,44 +109,12 @@ function useYearTab(invoices, basisType) {
   return { monthKey, years, selectedYear: effectiveYear, setSelectedYear, yearData, months };
 }
 
-function BasisBanner({ invoices, selectedYear, memo }) {
-  const carryovers = useMemo(() =>
-    invoices.filter(i => i.occurrenceMonth !== i.billingMonth &&
-      ((i.occurrenceMonth||'').startsWith(selectedYear) || (i.billingMonth||'').startsWith(selectedYear))),
-    [invoices, selectedYear]
-  );
-  if (carryovers.length === 0) return null;
-
-  const patterns = useMemo(() => {
-    const map = {};
-    carryovers.forEach(c => {
-      const key = `${c.occurrenceMonth} → ${c.billingMonth}`;
-      if (!map[key]) map[key] = { occMonth: c.occurrenceMonth, billMonth: c.billingMonth, hospitals: new Set(), qty: 0 };
-      map[key].hospitals.add(c.hospital);
-      map[key].qty += c.finalQty || 0;
-    });
-    return Object.values(map).sort((a, b) => a.occMonth.localeCompare(b.occMonth));
-  }, [carryovers]);
-
-  const fm = (m) => { const [y, mo] = (m||'').split('-'); return `${y?.slice(2)}.${mo}`; };
-
+function BasisBanner({ memo }) {
+  if (!memo) return null;
   return (
     <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-      <p className="text-xs font-semibold text-amber-700 mb-2">청구 이월 내역</p>
-      <div className="space-y-1">
-        {patterns.map((p, i) => (
-          <div key={i} className="flex items-center gap-2 text-xs">
-            <span className="bg-white border border-amber-300 rounded px-2 py-0.5 font-medium text-gray-700">{fm(p.occMonth)} 발생</span>
-            <span className="text-amber-400">→</span>
-            <span className="bg-white border border-amber-300 rounded px-2 py-0.5 font-medium text-gray-700">{fm(p.billMonth)} 청구</span>
-            <span className="text-gray-500">{[...p.hospitals].join(', ')}</span>
-            {p.qty > 0 && <span className="text-amber-600 font-medium">{fmt(p.qty)}건</span>}
-          </div>
-        ))}
-      </div>
-      {memo && (
-        <p className="mt-2 pt-2 border-t border-amber-200 text-xs text-amber-700 whitespace-pre-wrap">{memo}</p>
-      )}
+      <p className="text-xs font-semibold text-amber-700">청구 이월 메모</p>
+      <p className="mt-1 text-xs text-amber-700 whitespace-pre-wrap">{memo}</p>
     </div>
   );
 }
@@ -216,7 +184,7 @@ function SharedQty({ invoices, hospitalMeta, statsMemo }) {
             <option value="">전체 진료과</option><option value="안과">안과</option><option value="내과">내과</option>
           </select>
         </>} />
-      <BasisBanner invoices={invoices} selectedYear={selectedYear} memo={statsMemo} />
+      <BasisBanner memo={statsMemo} />
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-lg shadow p-4"><p className="text-xs text-gray-500">거래처 수</p><p className="text-2xl font-bold text-gray-800">{hospitalStats.length}<span className="text-sm font-normal text-gray-400">곳</span></p></div>
         <div className="bg-white rounded-lg shadow p-4"><p className="text-xs text-gray-500">총 건수</p><p className="text-2xl font-bold text-blue-600">{fmt(grandTotal)}<span className="text-sm font-normal text-gray-400">건</span></p></div>
@@ -301,7 +269,7 @@ function SharedRevenue({ invoices, hospitalMeta, statsMemo }) {
         extra={<select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="border border-gray-300 rounded-md px-3 py-1.5 text-sm">
           <option value="">전체 구분</option><option value="상급">상급</option><option value="로컬">로컬</option>
         </select>} />
-      <BasisBanner invoices={invoices} selectedYear={selectedYear} memo={statsMemo} />
+      <BasisBanner memo={statsMemo} />
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-lg shadow p-4"><p className="text-xs text-gray-500">총 매출 <span className="text-orange-400">(공급가액)</span></p><p className="text-2xl font-bold text-gray-800">{fmt(grandRevenue)}<span className="text-sm font-normal text-gray-400">원</span></p></div>
         <div className="bg-white rounded-lg shadow p-4"><p className="text-xs text-gray-500">총 건수</p><p className="text-2xl font-bold text-blue-600">{fmt(grandQty)}<span className="text-sm font-normal text-gray-400">건</span></p></div>

@@ -90,75 +90,30 @@ function useCommonFilters(invoices) {
   return { basisType, setBasisType, monthKey, years, selectedYear: effectiveYear, setSelectedYear, yearData, months };
 }
 
-// 발생 vs 청구 차이 비교 배너
-function BasisComparisonBanner({ invoices, selectedYear, memo, onMemoChange }) {
+// 이월 메모 배너 (수동 메모만, 자동 감지 제거)
+function BasisComparisonBanner({ memo, onMemoChange }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(memo || '');
 
-  // 이월 건 찾기
-  const carryovers = useMemo(() =>
-    invoices.filter(i =>
-      i.occurrenceMonth !== i.billingMonth &&
-      ((i.occurrenceMonth || '').startsWith(selectedYear) || (i.billingMonth || '').startsWith(selectedYear))
-    ),
-    [invoices, selectedYear]
-  );
-
-  // 이월 패턴별 그룹
-  const patterns = useMemo(() => {
-    const map = {};
-    carryovers.forEach(c => {
-      const key = `${c.occurrenceMonth} → ${c.billingMonth}`;
-      if (!map[key]) map[key] = { occMonth: c.occurrenceMonth, billMonth: c.billingMonth, hospitals: new Set(), qty: 0 };
-      map[key].hospitals.add(c.hospital);
-      map[key].qty += c.finalQty || 0;
-    });
-    return Object.values(map).sort((a, b) => a.occMonth.localeCompare(b.occMonth));
-  }, [carryovers]);
-
-  const formatMonth = (m) => {
-    if (!m) return '';
-    const [y, mo] = m.split('-');
-    return `${y.slice(2)}.${mo}`;
-  };
-
   const handleSave = () => { onMemoChange(draft); setEditing(false); };
 
-  const hasContent = carryovers.length > 0 || memo;
-  if (!hasContent) return null;
+  if (!memo && !editing && !onMemoChange) return null;
 
   return (
     <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-semibold text-amber-700">청구 이월 내역</p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-amber-700">청구 이월 메모</p>
         {onMemoChange && (
           <button onClick={() => { setDraft(memo || ''); setEditing(!editing); }}
             className="text-xs text-amber-500 hover:text-amber-700">
-            {editing ? '취소' : '메모 편집'}
+            {editing ? '취소' : (memo ? '편집' : '메모 작성')}
           </button>
         )}
       </div>
-      {carryovers.length > 0 && (
-        <div className="space-y-1 mb-2">
-          {patterns.map((p, i) => (
-            <div key={i} className="flex items-center gap-2 text-xs">
-              <span className="bg-white border border-amber-300 rounded px-2 py-0.5 font-medium text-gray-700">
-                {formatMonth(p.occMonth)} 발생
-              </span>
-              <span className="text-amber-400">→</span>
-              <span className="bg-white border border-amber-300 rounded px-2 py-0.5 font-medium text-gray-700">
-                {formatMonth(p.billMonth)} 청구
-              </span>
-              <span className="text-gray-500">{[...p.hospitals].join(', ')}</span>
-              {p.qty > 0 && <span className="text-amber-600 font-medium">{fmt(p.qty)}건</span>}
-            </div>
-          ))}
-        </div>
-      )}
       {editing ? (
-        <div className="pt-2 border-t border-amber-200">
+        <div className="mt-2">
           <textarea value={draft} onChange={e => setDraft(e.target.value)}
-            placeholder="이월 관련 메모를 입력하세요"
+            placeholder="예: 세브란스 2월 발생분 → 4월 청구 (3월 미청구)"
             className="w-full border border-amber-300 rounded px-2 py-1.5 text-xs min-h-[50px] resize-y bg-white" />
           <div className="flex justify-end gap-2 mt-1">
             <button onClick={() => setEditing(false)} className="text-xs text-gray-400 hover:text-gray-600">취소</button>
@@ -166,7 +121,7 @@ function BasisComparisonBanner({ invoices, selectedYear, memo, onMemoChange }) {
           </div>
         </div>
       ) : memo ? (
-        <p className="pt-2 border-t border-amber-200 text-xs text-amber-700 whitespace-pre-wrap">{memo}</p>
+        <p className="mt-1 text-xs text-amber-700 whitespace-pre-wrap">{memo}</p>
       ) : null}
     </div>
   );
@@ -324,7 +279,7 @@ function QtySection({ invoices, hospitalMeta, statsMemo, setStatsMemo }) {
           </select>
         </>} />
 
-      <BasisComparisonBanner invoices={invoices} selectedYear={selectedYear} memo={statsMemo} onMemoChange={setStatsMemo} />
+      <BasisComparisonBanner memo={statsMemo} onMemoChange={setStatsMemo} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard label="거래처 수" value={hospitalStats.length} unit="곳" />
@@ -491,7 +446,7 @@ function RevenueSection({ invoices, hospitalMeta, statsMemo, setStatsMemo }) {
           </select>
         </>} />
 
-      <BasisComparisonBanner invoices={invoices} selectedYear={selectedYear} memo={statsMemo} onMemoChange={setStatsMemo} />
+      <BasisComparisonBanner memo={statsMemo} onMemoChange={setStatsMemo} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard label="총 매출 (공급가액)" value={fmt(grandRevenue)} unit="원" />

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
-import { calculateVAT, fmt } from '../utils/calculations';
+import { calculateVAT, fmt, calculateDueDate } from '../utils/calculations';
 import useLocalStorage from '../hooks/useLocalStorage';
 import BillingGuide from './BillingGuide';
 import EmailSendModal from './EmailSendModal';
@@ -9,7 +9,7 @@ import EmailSendModal from './EmailSendModal';
 const QTY_TOLERANCE = 20;
 
 const MonthlyBilling = () => {
-  const { ledger, hospitals, updateLedgerEntry, deleteLedgerEntry, generateMonthlyEntries, closeMonth, openMonth, isMonthClosed } = useData();
+  const { ledger, hospitals, addLedgerEntry, updateLedgerEntry, deleteLedgerEntry, generateMonthlyEntries, closeMonth, openMonth, isMonthClosed } = useData();
 
   const [billingMonth, setBillingMonth] = useState(() => {
     const d = new Date();
@@ -124,6 +124,8 @@ const MonthlyBilling = () => {
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [moveTarget, setMoveTarget] = useState('');
   const [expandedRows, setExpandedRows] = useState(new Set());
+  const [showCarryoverModal, setShowCarryoverModal] = useState(false);
+  const [carryover, setCarryover] = useState({ occurrenceMonth: '', hospital: '', product: 'CAS' });
   const [emailHistory, setEmailHistory] = useLocalStorage('billing_email_history', []);
   const [showEmailModal, setShowEmailModal] = useState(null);
   const [emailToast, setEmailToast] = useState(null);
@@ -152,6 +154,52 @@ const MonthlyBilling = () => {
     setShowMoveModal(false);
     setBillingMonth(moveTarget);
   };
+
+  // 이월 청구 추가
+  const handleAddCarryover = () => {
+    const { occurrenceMonth, hospital, product } = carryover;
+    if (!occurrenceMonth || !hospital) { alert('발생월과 거래처를 선택해주세요.'); return; }
+    if (occurrenceMonth >= billingMonth) { alert('발생월은 청구월보다 이전이어야 합니다.'); return; }
+    const h = hospitals.find(x => x['거래처명'] === hospital && x['제품명'] === product);
+    const unitPrice = h ? ((h['납품가'] != null && h['납품가'] !== 0) ? h['납품가'] : (h['단가'] || 0)) : 0;
+    const settlementDays = h ? (parseInt(h['정산주기']) || 0) : 0;
+    const dueDate = calculateDueDate(billingMonth, settlementDays);
+
+    addLedgerEntry({
+      '청구기준': billingMonth,
+      '발생기준': occurrenceMonth,
+      '거래처명': hospital,
+      '진료과': h?.['진료과'] || '',
+      '제품명': product,
+      '수량확정': 'FALSE',
+      '계산서': 'FALSE',
+      '당월발생': '0',
+      '병원수량': '0',
+      '차월이월': '0',
+      '전월반영': '0',
+      '최종건수': 0,
+      '단가': unitPrice,
+      '공급가': 0,
+      '부가세': 0,
+      '청구금액': 0,
+      '정산주기': settlementDays,
+      '입금예정일': dueDate,
+      '실제입금일': '',
+      '미수금': 0,
+      '채권상태': '미청구',
+      '채권연령': 0,
+      '잠금': 'FALSE',
+      '비고': `${occurrenceMonth} 발생분 이월`,
+    });
+    setShowCarryoverModal(false);
+    setCarryover({ occurrenceMonth: '', hospital: '', product: 'CAS' });
+  };
+
+  // 거래처 목록 (중복 제거)
+  const uniqueHospitalNames = useMemo(() =>
+    [...new Set(hospitals.map(h => h['거래처명']))].filter(Boolean).sort((a, b) => a.localeCompare(b, 'ko')),
+    [hospitals]
+  );
 
   // 병원 이메일 정보 매핑
   const hospitalEmailMap = useMemo(() => {
@@ -244,10 +292,16 @@ const MonthlyBilling = () => {
           </div>
           <div className="flex items-center gap-2">
             {!isClosed && (
-              <button onClick={handleGenerate}
-                className="bg-green-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-600">
-                {hasData ? '신규 거래처 추가' : '이 달 청구 생성'}
-              </button>
+              <>
+                <button onClick={handleGenerate}
+                  className="bg-green-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-600">
+                  {hasData ? '신규 거래처 추가' : '이 달 청구 생성'}
+                </button>
+                <button onClick={() => setShowCarryoverModal(true)}
+                  className="bg-amber-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-amber-600">
+                  이월 청구
+                </button>
+              </>
             )}
             {hasData && !isClosed && (
               <>
@@ -384,7 +438,14 @@ const MonthlyBilling = () => {
                           </div>
                         </button>
                       </td>
-                      <td className="table-cell font-medium text-sm">{item['거래처명']}</td>
+                      <td className="table-cell font-medium text-sm">
+                        {item['거래처명']}
+                        {item['발생기준'] && item['발생기준'] !== item['청구기준'] && (
+                          <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                            {item['발생기준'].slice(5)}월 이월
+                          </span>
+                        )}
+                      </td>
                       <td className="table-cell text-xs text-gray-500">{item['진료과']}</td>
                       <td className="table-cell text-xs">{item['제품명']}</td>
 
@@ -587,6 +648,57 @@ const MonthlyBilling = () => {
           onClose={() => setShowEmailModal(null)}
           onSent={handleEmailSent}
         />
+      )}
+
+      {/* 이월 청구 모달 */}
+      {showCarryoverModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-bold text-gray-800 mb-1">이월 청구 추가</h3>
+            <p className="text-xs text-gray-500 mb-4">이전 월 발생분을 {billingMonth} 청구로 추가합니다.</p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">발생월 (실제 처방 발생 시점)</label>
+                <input type="month" value={carryover.occurrenceMonth}
+                  onChange={e => setCarryover(p => ({ ...p, occurrenceMonth: e.target.value }))}
+                  max={(() => { const [y,m] = billingMonth.split('-').map(Number); const d = new Date(y, m - 2, 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; })()}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">거래처</label>
+                <select value={carryover.hospital}
+                  onChange={e => setCarryover(p => ({ ...p, hospital: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm">
+                  <option value="">선택</option>
+                  {uniqueHospitalNames.map(h => <option key={h} value={h}>{h}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">제품</label>
+                <select value={carryover.product}
+                  onChange={e => setCarryover(p => ({ ...p, product: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm">
+                  <option value="CAS">CAS</option>
+                  <option value="EXO">EXO</option>
+                </select>
+              </div>
+              {carryover.occurrenceMonth && carryover.hospital && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
+                  <span className="font-medium">{carryover.hospital}</span>의
+                  <span className="font-medium"> {carryover.occurrenceMonth}</span> 발생분을
+                  <span className="font-medium"> {billingMonth}</span>에 청구합니다.
+                  <br />비고란에 자동 기재됩니다.
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => setShowCarryoverModal(false)}
+                className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">취소</button>
+              <button onClick={handleAddCarryover}
+                className="px-4 py-2 bg-amber-500 text-white text-sm rounded-md hover:bg-amber-600 font-medium">추가</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
