@@ -594,23 +594,27 @@ const MonthlyBilling = () => {
 
                       {/* 상태 */}
                       <td className="table-cell">
-                        {item['채권상태'] === '청구확정' && !isClosed ? (
+                        {(item['채권상태'] === '청구확정' || item['채권상태'] === '완납') && !isClosed ? (
                           <button onClick={() => {
-                            if (window.confirm(`${item['거래처명']} ${item['제품명']} 청구확정을 취소하시겠습니까?`)) {
+                            const status = item['채권상태'];
+                            if (window.confirm(`${item['거래처명']} ${item['제품명']}\n${status} → 정상으로 변경하시겠습니까?`)) {
                               updateLedgerEntry(item._id, { '채권상태': '정상' });
                             }
                           }}
-                            className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700 hover:bg-red-100 hover:text-red-600 transition-colors cursor-pointer"
-                            title="클릭하여 청구확정 취소">
-                            청구확정 ✕
+                            className={`text-xs px-2 py-1 rounded-full cursor-pointer transition-colors ${
+                              item['채권상태'] === '완납'
+                                ? 'bg-green-100 text-green-700 hover:bg-red-100 hover:text-red-600'
+                                : 'bg-blue-100 text-blue-700 hover:bg-red-100 hover:text-red-600'
+                            }`}
+                            title="클릭하여 상태 변경">
+                            {item['채권상태']} ✕
                           </button>
                         ) : (
                           <span className={`text-xs px-2 py-1 rounded-full ${
-                            item['채권상태'] === '완납' ? 'bg-green-100 text-green-700' :
                             item['최종건수'] === 0 ? 'bg-yellow-100 text-yellow-700' :
                             'bg-gray-100 text-gray-600'
                           }`}>
-                            {item['최종건수'] === 0 && item['채권상태'] !== '청구확정' ? '수량 입력 필요' : item['채권상태']}
+                            {item['최종건수'] === 0 ? '수량 입력 필요' : item['채권상태']}
                           </span>
                         )}
                       </td>
@@ -656,19 +660,49 @@ const MonthlyBilling = () => {
                     {isExpanded && (
                       <tr>
                         <td colSpan={15} className="p-0 bg-gray-50 border-b border-blue-100">
-                          {/* 발생월 편집 */}
+                          {/* 발생월 + 금액 수동 조정 */}
                           {!isLocked && (
-                            <div className="px-4 py-2 border-b border-gray-200 flex items-center gap-3 bg-white">
-                              <span className="text-xs text-gray-500">발생월:</span>
-                              <input type="month" value={item['발생기준'] || item['청구기준']}
-                                onChange={e => updateLedgerEntry(item._id, {
-                                  '발생기준': e.target.value,
-                                  '비고': e.target.value !== item['청구기준'] ? `${e.target.value} 발생분 이월` : item['비고']
-                                })}
-                                className="border border-gray-300 rounded px-2 py-1 text-xs" />
-                              {item['발생기준'] && item['발생기준'] !== item['청구기준'] && (
-                                <span className="text-xs text-amber-600">청구월과 다름 (이월 청구)</span>
-                              )}
+                            <div className="px-4 py-3 border-b border-gray-200 bg-white space-y-2">
+                              <div className="flex items-center gap-3">
+                                <span className="text-xs text-gray-500 w-12">발생월</span>
+                                <input type="month" value={item['발생기준'] || item['청구기준']}
+                                  onChange={e => updateLedgerEntry(item._id, {
+                                    '발생기준': e.target.value,
+                                    '비고': e.target.value !== item['청구기준'] ? `${e.target.value} 발생분 이월` : item['비고']
+                                  })}
+                                  className="border border-gray-300 rounded px-2 py-1 text-xs" />
+                                {item['발생기준'] && item['발생기준'] !== item['청구기준'] && (
+                                  <span className="text-xs text-amber-600">이월 청구</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-3 flex-wrap">
+                                <span className="text-xs text-gray-500 w-12">공급가</span>
+                                <input type="number" value={item['공급가'] || ''}
+                                  onChange={e => {
+                                    const supply = parseInt(e.target.value) || 0;
+                                    const vat = (item['청구금액'] || 0) - supply;
+                                    updateLedgerEntry(item._id, { '공급가': supply, '부가세': vat });
+                                  }}
+                                  className="w-32 border border-gray-300 rounded px-2 py-1 text-xs text-right" />
+                                <span className="text-xs text-gray-500 w-12">세액</span>
+                                <input type="number" value={item['부가세'] || ''}
+                                  onChange={e => {
+                                    const vat = parseInt(e.target.value) || 0;
+                                    const supply = (item['청구금액'] || 0) - vat;
+                                    updateLedgerEntry(item._id, { '공급가': supply, '부가세': vat });
+                                  }}
+                                  className="w-32 border border-gray-300 rounded px-2 py-1 text-xs text-right" />
+                                <span className="text-xs text-gray-400">
+                                  청구금액 {fmt(item['청구금액'] || 0)}원 = 공급가 {fmt(item['공급가'] || 0)} + 세액 {fmt(item['부가세'] || 0)}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className="text-xs text-gray-500 w-12">비고</span>
+                                <input type="text" value={item['비고'] || ''}
+                                  onChange={e => updateLedgerEntry(item._id, { '비고': e.target.value })}
+                                  placeholder="메모 입력"
+                                  className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs" />
+                              </div>
                             </div>
                           )}
                           <BillingGuide entry={item} />
