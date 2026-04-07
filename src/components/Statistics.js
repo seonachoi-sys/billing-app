@@ -90,6 +90,29 @@ function useCommonFilters(invoices) {
   return { basisType, setBasisType, monthKey, years, selectedYear: effectiveYear, setSelectedYear, yearData, months };
 }
 
+// 발생 vs 청구 차이 요약 (KPI 옆에 표시)
+function BasisDiffSummary({ invoices, selectedYear }) {
+  const occQty = useMemo(() =>
+    invoices.filter(i => (i.occurrenceMonth || '').startsWith(selectedYear)).reduce((s, i) => s + (i.finalQty || 0), 0),
+    [invoices, selectedYear]);
+  const billQty = useMemo(() =>
+    invoices.filter(i => (i.billingMonth || '').startsWith(selectedYear)).reduce((s, i) => s + (i.finalQty || 0), 0),
+    [invoices, selectedYear]);
+  const diff = occQty - billQty;
+  if (diff === 0) return null;
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs flex items-center gap-2 flex-wrap">
+      <span className="font-semibold text-amber-700">기준별 차이:</span>
+      <span>발생 <span className="font-bold">{fmt(occQty)}</span>건</span>
+      <span className="text-gray-400">vs</span>
+      <span>청구 <span className="font-bold">{fmt(billQty)}</span>건</span>
+      <span className={`font-bold ${diff > 0 ? 'text-red-500' : 'text-blue-500'}`}>
+        ({diff > 0 ? '+' : ''}{fmt(diff)}건)
+      </span>
+    </div>
+  );
+}
+
 // 이월 메모 배너 (수동 메모만, 자동 감지 제거)
 function BasisComparisonBanner({ memo, onMemoChange }) {
   const [editing, setEditing] = useState(false);
@@ -280,6 +303,7 @@ function QtySection({ invoices, hospitalMeta, statsMemo, setStatsMemo }) {
         </>} />
 
       <BasisComparisonBanner memo={statsMemo} onMemoChange={setStatsMemo} />
+      <BasisDiffSummary invoices={invoices} selectedYear={selectedYear} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard label="거래처 수" value={hospitalStats.length} unit="곳" />
@@ -447,6 +471,7 @@ function RevenueSection({ invoices, hospitalMeta, statsMemo, setStatsMemo }) {
         </>} />
 
       <BasisComparisonBanner memo={statsMemo} onMemoChange={setStatsMemo} />
+      <BasisDiffSummary invoices={invoices} selectedYear={selectedYear} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard label="총 매출 (공급가액)" value={fmt(grandRevenue)} unit="원" />

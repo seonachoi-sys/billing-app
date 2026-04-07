@@ -720,126 +720,6 @@
     "source": "seed"
   },
   {
-    "month": "2026-03",
-    "hospital": "단국대학교의과대학부속병원",
-    "department": "내과",
-    "product": "CAS",
-    "adminQty": 2,
-    "hospitalQty": 10,
-    "diff": -8,
-    "source": "seed"
-  },
-  {
-    "month": "2026-03",
-    "hospital": "인하대학교의과대학부속병원",
-    "department": "안과",
-    "product": "CAS",
-    "adminQty": 7,
-    "hospitalQty": 8,
-    "diff": -1,
-    "source": "seed"
-  },
-  {
-    "month": "2026-03",
-    "hospital": "부산백병원",
-    "department": "내과",
-    "product": "CAS",
-    "adminQty": 26,
-    "hospitalQty": 26,
-    "diff": 0,
-    "source": "seed"
-  },
-  {
-    "month": "2026-03",
-    "hospital": "학교법인 울산공업학원 울산대학교병원",
-    "department": "내과",
-    "product": "CAS",
-    "adminQty": 4,
-    "hospitalQty": 3,
-    "diff": 1,
-    "source": "seed"
-  },
-  {
-    "month": "2026-03",
-    "hospital": "김안과병원",
-    "department": "안과",
-    "product": "CAS",
-    "adminQty": 13,
-    "hospitalQty": 12,
-    "diff": 1,
-    "source": "seed"
-  },
-  {
-    "month": "2026-03",
-    "hospital": "하승우내과",
-    "department": "내과",
-    "product": "CAS",
-    "adminQty": 5,
-    "hospitalQty": 5,
-    "diff": 0,
-    "source": "seed"
-  },
-  {
-    "month": "2026-03",
-    "hospital": "샤일리안과",
-    "department": "안과",
-    "product": "EXO",
-    "adminQty": 17,
-    "hospitalQty": 14,
-    "diff": 3,
-    "source": "seed"
-  },
-  {
-    "month": "2026-03",
-    "hospital": "가톨릭대학교 의정부성모병원",
-    "department": "내과",
-    "product": "CAS",
-    "adminQty": 31,
-    "hospitalQty": 31,
-    "diff": 0,
-    "source": "seed"
-  },
-  {
-    "month": "2026-03",
-    "hospital": "가톨릭대학교 의정부성모병원",
-    "department": "안과",
-    "product": "EXO",
-    "adminQty": 30,
-    "hospitalQty": 30,
-    "diff": 0,
-    "source": "seed"
-  },
-  {
-    "month": "2026-03",
-    "hospital": "죽전샘편한내과",
-    "department": "내과",
-    "product": "CAS",
-    "adminQty": 10,
-    "hospitalQty": 10,
-    "diff": 0,
-    "source": "seed"
-  },
-  {
-    "month": "2026-03",
-    "hospital": "가톨릭대학교 인천성모병원",
-    "department": "내과",
-    "product": "CAS",
-    "adminQty": 13,
-    "hospitalQty": 16,
-    "diff": -3,
-    "source": "seed"
-  },
-  {
-    "month": "2026-03",
-    "hospital": "단국대학교의과대학부속병원",
-    "department": "안과",
-    "product": "EXO",
-    "adminQty": 22,
-    "hospitalQty": 7,
-    "diff": 15,
-    "source": "seed"
-  },
-  {
     "month": "2025-09",
     "hospital": "세브란스병원",
     "department": "안과",
@@ -900,16 +780,6 @@
     "source": "seed"
   },
   {
-    "month": "2026-03",
-    "hospital": "세브란스병원",
-    "department": "안과",
-    "product": "CAS",
-    "adminQty": 246,
-    "hospitalQty": null,
-    "diff": null,
-    "source": "seed"
-  },
-  {
     "month": "2025-11",
     "hospital": "세브란스병원",
     "department": "안과",
@@ -947,16 +817,6 @@
     "adminQty": 204,
     "hospitalQty": 199,
     "diff": 5,
-    "source": "seed"
-  },
-  {
-    "month": "2026-03",
-    "hospital": "세브란스병원",
-    "department": "안과",
-    "product": "EXO",
-    "adminQty": 242,
-    "hospitalQty": null,
-    "diff": null,
     "source": "seed"
   }
 ]

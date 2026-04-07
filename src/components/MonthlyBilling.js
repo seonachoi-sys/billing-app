@@ -23,6 +23,27 @@ const MonthlyBilling = () => {
   );
 
   const hasData = monthItems.length > 0;
+
+  // 전월 데이터 (참고 표시용)
+  const prevMonth = useMemo(() => {
+    const [y, m] = billingMonth.split('-').map(Number);
+    const d = new Date(y, m - 2, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }, [billingMonth]);
+  const prevMonthMap = useMemo(() => {
+    const map = {};
+    ledger.filter(item => item['청구기준'] === prevMonth).forEach(item => {
+      const key = `${item['거래처명']}||${item['제품명']}`;
+      map[key] = parseInt(item['병원수량']) || 0;
+    });
+    return map;
+  }, [ledger, prevMonth]);
+
+  // 입력 상태 집계
+  const inputStatus = useMemo(() => {
+    const entered = monthItems.filter(i => parseInt(i['병원수량']) > 0).length;
+    return { entered, total: monthItems.length };
+  }, [monthItems]);
   const isClosed = isMonthClosed(billingMonth);
 
   // 요약
@@ -347,30 +368,42 @@ const MonthlyBilling = () => {
           </div>
         </div>
 
-        {/* 요약 카드 */}
+        {/* 진행률 + 요약 카드 */}
         {hasData && (
-          <div className="grid grid-cols-4 gap-4 mt-4">
-            <div className="bg-gray-50 rounded-lg p-3 text-center">
-              <p className="text-2xl font-bold text-gray-800">{summary.count}</p>
-              <p className="text-xs text-gray-500">총 거래처</p>
-            </div>
-            <div className="bg-blue-50 rounded-lg p-3 text-center">
-              <p className="text-2xl font-bold text-blue-600">{summary.confirmed}</p>
-              <p className="text-xs text-gray-500">수량확정</p>
-            </div>
-            <div className="bg-green-50 rounded-lg p-3 text-center">
-              <p className="text-2xl font-bold text-green-600">{summary.invoiced}</p>
-              <p className="text-xs text-gray-500">계산서 발행</p>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-3 text-center">
-              <p className="text-2xl font-bold text-gray-800">{fmt(summary.total)}원</p>
-              <p className="text-xs text-gray-500">청구 합계</p>
-            </div>
-            {summary.qtyWarnings > 0 && (
-              <div className="col-span-4 bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm text-orange-700">
-                수량 차이 20 초과: <span className="font-bold">{summary.qtyWarnings}건</span> — 회사수량과 병원수량 확인 필요
+          <div className="mt-4 space-y-3">
+            {/* 입력 진행률 */}
+            <div className="flex items-center gap-3">
+              <div className="flex-1 bg-gray-200 rounded-full h-2">
+                <div className="bg-green-500 h-2 rounded-full transition-all"
+                  style={{ width: `${inputStatus.total > 0 ? (inputStatus.entered / inputStatus.total * 100) : 0}%` }} />
               </div>
-            )}
+              <span className="text-sm font-medium text-gray-600 whitespace-nowrap">
+                <span className="text-green-600">{inputStatus.entered}</span> / {inputStatus.total} 거래처 입력완료
+              </span>
+            </div>
+            <div className="grid grid-cols-4 gap-4">
+              <div className="bg-gray-50 rounded-lg p-3 text-center">
+                <p className="text-2xl font-bold text-gray-800">{summary.count}</p>
+                <p className="text-xs text-gray-500">총 거래처</p>
+              </div>
+              <div className="bg-blue-50 rounded-lg p-3 text-center">
+                <p className="text-2xl font-bold text-blue-600">{summary.confirmed}</p>
+                <p className="text-xs text-gray-500">수량확정</p>
+              </div>
+              <div className="bg-green-50 rounded-lg p-3 text-center">
+                <p className="text-2xl font-bold text-green-600">{summary.invoiced}</p>
+                <p className="text-xs text-gray-500">계산서 발행</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3 text-center">
+                <p className="text-2xl font-bold text-gray-800">{fmt(summary.total)}원</p>
+                <p className="text-xs text-gray-500">청구 합계</p>
+              </div>
+              {summary.qtyWarnings > 0 && (
+                <div className="col-span-4 bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm text-orange-700">
+                  수량 차이 20 초과: <span className="font-bold">{summary.qtyWarnings}건</span> — 회사수량과 병원수량 확인 필요
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -407,7 +440,13 @@ const MonthlyBilling = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {[...monthItems].sort((a, b) => (a['거래처명'] || '').localeCompare(b['거래처명'] || '', 'ko')).map((item) => {
+                {[...monthItems].sort((a, b) => {
+                  // 미입력 상단, 입력완료 하단
+                  const aEntered = parseInt(a['병원수량']) > 0 ? 1 : 0;
+                  const bEntered = parseInt(b['병원수량']) > 0 ? 1 : 0;
+                  if (aEntered !== bEntered) return aEntered - bEntered;
+                  return (a['거래처명'] || '').localeCompare(b['거래처명'] || '', 'ko');
+                }).map((item) => {
                   const isLocked = isClosed || item['채권상태'] === '청구확정' || item['채권상태'] === '완납';
                   const companyQty = parseInt(item['당월발생']) || 0;
                   const hospitalQty = parseInt(item['병원수량']) || 0;
@@ -439,12 +478,22 @@ const MonthlyBilling = () => {
                         </button>
                       </td>
                       <td className="table-cell font-medium text-sm">
-                        {item['거래처명']}
-                        {item['발생기준'] && item['발생기준'] !== item['청구기준'] && (
-                          <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
-                            {item['발생기준'].slice(5)}월 이월
-                          </span>
-                        )}
+                        <div className="flex items-center gap-1.5">
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${parseInt(item['병원수량']) > 0 ? 'bg-green-500' : 'bg-gray-300'}`} />
+                          <span>{item['거래처명']}</span>
+                          {item['발생기준'] && item['발생기준'] !== item['청구기준'] && (
+                            <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                              {item['발생기준'].slice(5)}월 이월
+                            </span>
+                          )}
+                        </div>
+                        {(() => {
+                          const prevKey = `${item['거래처명']}||${item['제품명']}`;
+                          const prevQty = prevMonthMap[prevKey];
+                          return prevQty > 0 ? (
+                            <p className="text-xs text-gray-400 ml-3.5">전월: {prevQty}건</p>
+                          ) : null;
+                        })()}
                       </td>
                       <td className="table-cell text-xs text-gray-500">{item['진료과']}</td>
                       <td className="table-cell text-xs">{item['제품명']}</td>
@@ -596,6 +645,21 @@ const MonthlyBilling = () => {
                     {isExpanded && (
                       <tr>
                         <td colSpan={15} className="p-0 bg-gray-50 border-b border-blue-100">
+                          {/* 발생월 편집 */}
+                          {!isLocked && (
+                            <div className="px-4 py-2 border-b border-gray-200 flex items-center gap-3 bg-white">
+                              <span className="text-xs text-gray-500">발생월:</span>
+                              <input type="month" value={item['발생기준'] || item['청구기준']}
+                                onChange={e => updateLedgerEntry(item._id, {
+                                  '발생기준': e.target.value,
+                                  '비고': e.target.value !== item['청구기준'] ? `${e.target.value} 발생분 이월` : item['비고']
+                                })}
+                                className="border border-gray-300 rounded px-2 py-1 text-xs" />
+                              {item['발생기준'] && item['발생기준'] !== item['청구기준'] && (
+                                <span className="text-xs text-amber-600">청구월과 다름 (이월 청구)</span>
+                              )}
+                            </div>
+                          )}
                           <BillingGuide entry={item} />
                         </td>
                       </tr>
