@@ -1,6 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { fmt } from '../utils/calculations';
+import seedInvoices from '../data/seedInvoices.json';
+
+const SEED_AS_LEDGER = seedInvoices.map(inv => ({
+  '청구기준': inv.billingMonth, '발생기준': inv.occurrenceMonth, '거래처명': inv.hospital,
+  '진료과': inv.department, '제품명': inv.product, '최종건수': inv.finalQty || 0,
+  '단가': inv.unitPrice || 0, '공급가': inv.supplyAmount || 0, '부가세': inv.tax || 0,
+  '청구금액': inv.totalAmount || 0, '채권상태': inv.status || '', '_source': 'seed',
+}));
 
 function calcChange(c, p) {
   if (p === 0 || p == null) return c > 0 ? { val: c, pct: null } : { val: 0, pct: null };
@@ -24,6 +32,15 @@ const SharedStats = () => {
     });
     return map;
   }, [hospitals]);
+
+  const mergedLedger = useMemo(() => {
+    const keys = new Set();
+    ledger.forEach(item => {
+      keys.add(`${item['거래처명']}||${item['제품명']}||${item['청구기준']}||${item['발생기준'] || item['청구기준']}`);
+    });
+    const seedOnly = SEED_AS_LEDGER.filter(s => !keys.has(`${s['거래처명']}||${s['제품명']}||${s['청구기준']}||${s['발생기준']}`));
+    return [...ledger, ...seedOnly];
+  }, [ledger]);
 
   if (!firebaseReady) return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -52,9 +69,9 @@ const SharedStats = () => {
           ))}
         </div>
         {statsMemo && <div className="bg-amber-50 border border-amber-200 rounded-lg p-3"><p className="text-xs font-semibold text-amber-700">청구 이월 메모</p><p className="mt-1 text-xs text-amber-700 whitespace-pre-wrap">{statsMemo}</p></div>}
-        {activeSection === 'qty' && <SQty ledger={ledger} meta={hospitalMeta} />}
-        {activeSection === 'revenue' && <SRevenue ledger={ledger} meta={hospitalMeta} />}
-        {activeSection === 'salesRep' && <SSalesRep ledger={ledger} meta={hospitalMeta} />}
+        {activeSection === 'qty' && <SQty ledger={mergedLedger} meta={hospitalMeta} />}
+        {activeSection === 'revenue' && <SRevenue ledger={mergedLedger} meta={hospitalMeta} />}
+        {activeSection === 'salesRep' && <SSalesRep ledger={mergedLedger} meta={hospitalMeta} />}
       </main>
       <footer className="bg-white border-t border-gray-200 mt-8"><div className="max-w-6xl mx-auto px-4 py-4 text-center text-xs text-gray-400">㈜타이로스코프 매출청구 관리 · 읽기 전용</div></footer>
     </div>
