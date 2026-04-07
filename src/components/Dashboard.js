@@ -187,15 +187,15 @@ function ReconciliationSection() {
   const hospitalStats = useMemo(() => {
     const map = {};
     reconciliation.forEach(r => {
-      if (!map[r.hospital]) map[r.hospital] = { hospital: r.hospital, admin: 0, hospital_: 0, diff: 0, months: 0, unconfirmed: 0 };
+      if (!map[r.hospital]) map[r.hospital] = { hospital: r.hospital, admin: 0, hospital_: 0, diff: 0, monthSet: new Set(), unconfirmed: 0 };
       map[r.hospital].admin += r.adminQty || 0;
       map[r.hospital].hospital_ += (r.hospitalQty != null ? r.hospitalQty : 0);
       if (r.diff != null) map[r.hospital].diff += r.diff;
-      map[r.hospital].months += 1;
+      map[r.hospital].monthSet.add(r.month);
       if (r.hospitalQty == null) map[r.hospital].unconfirmed += 1;
     });
     return Object.values(map)
-      .map(h => ({ ...h, diffRate: h.hospital_ > 0 ? ((h.diff / h.hospital_) * 100).toFixed(1) : '0.0' }))
+      .map(h => ({ ...h, months: h.monthSet.size, diffRate: h.hospital_ > 0 ? ((h.diff / h.hospital_) * 100).toFixed(1) : '0.0' }))
       .sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
   }, [reconciliation]);
 
@@ -215,11 +215,22 @@ function ReconciliationSection() {
   );
 
   const handleExport = () => {
-    // 병원별 월별 매트릭스 생성
+    // 병원별 월별 매트릭스 생성 (같은 병원+월에 CAS/EXO 합산)
     const monthMap = {};
     reconciliation.forEach(r => {
       if (!monthMap[r.hospital]) monthMap[r.hospital] = {};
-      monthMap[r.hospital][r.month] = { admin: r.adminQty, hosp: r.hospitalQty, diff: r.diff };
+      const existing = monthMap[r.hospital][r.month];
+      if (existing) {
+        existing.admin += r.adminQty || 0;
+        existing.hosp += (r.hospitalQty != null ? r.hospitalQty : 0);
+        existing.diff = (existing.diff ?? 0) + (r.diff ?? 0);
+      } else {
+        monthMap[r.hospital][r.month] = {
+          admin: r.adminQty || 0,
+          hosp: r.hospitalQty != null ? r.hospitalQty : 0,
+          diff: r.diff,
+        };
+      }
     });
 
     const columns = [
