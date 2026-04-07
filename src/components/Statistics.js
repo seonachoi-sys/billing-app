@@ -30,7 +30,7 @@ function ChangeIndicator({ change, unit = '' }) {
 }
 
 const Statistics = () => {
-  const { invoices, statsMemo } = useData();
+  const { invoices, statsMemo, setStatsMemo } = useData();
   const [activeSection, setActiveSection] = useState('qty');
   const hospitalMeta = HOSPITAL_META;
 
@@ -60,8 +60,8 @@ const Statistics = () => {
         ))}
       </div>
 
-      {activeSection === 'qty' && <QtySection invoices={invoices} hospitalMeta={hospitalMeta} statsMemo={statsMemo} />}
-      {activeSection === 'revenue' && <RevenueSection invoices={invoices} hospitalMeta={hospitalMeta} statsMemo={statsMemo} />}
+      {activeSection === 'qty' && <QtySection invoices={invoices} hospitalMeta={hospitalMeta} statsMemo={statsMemo} setStatsMemo={setStatsMemo} />}
+      {activeSection === 'revenue' && <RevenueSection invoices={invoices} hospitalMeta={hospitalMeta} statsMemo={statsMemo} setStatsMemo={setStatsMemo} />}
       {activeSection === 'salesRep' && <SalesRepSection invoices={invoices} hospitalMeta={hospitalMeta} />}
     </div>
   );
@@ -91,7 +91,10 @@ function useCommonFilters(invoices) {
 }
 
 // 발생 vs 청구 차이 비교 배너
-function BasisComparisonBanner({ invoices, selectedYear, memo }) {
+function BasisComparisonBanner({ invoices, selectedYear, memo, onMemoChange }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(memo || '');
+
   // 이월 건 찾기
   const carryovers = useMemo(() =>
     invoices.filter(i =>
@@ -101,17 +104,14 @@ function BasisComparisonBanner({ invoices, selectedYear, memo }) {
     [invoices, selectedYear]
   );
 
-  if (carryovers.length === 0) return null;
-
-  // 이월 패턴별 그룹: "발생월 → 청구월" 단위로 묶기
+  // 이월 패턴별 그룹
   const patterns = useMemo(() => {
     const map = {};
     carryovers.forEach(c => {
       const key = `${c.occurrenceMonth} → ${c.billingMonth}`;
-      if (!map[key]) map[key] = { occMonth: c.occurrenceMonth, billMonth: c.billingMonth, hospitals: new Set(), qty: 0, count: 0 };
+      if (!map[key]) map[key] = { occMonth: c.occurrenceMonth, billMonth: c.billingMonth, hospitals: new Set(), qty: 0 };
       map[key].hospitals.add(c.hospital);
       map[key].qty += c.finalQty || 0;
-      map[key].count += 1;
     });
     return Object.values(map).sort((a, b) => a.occMonth.localeCompare(b.occMonth));
   }, [carryovers]);
@@ -122,29 +122,52 @@ function BasisComparisonBanner({ invoices, selectedYear, memo }) {
     return `${y.slice(2)}.${mo}`;
   };
 
+  const handleSave = () => { onMemoChange(draft); setEditing(false); };
+
+  const hasContent = carryovers.length > 0 || memo;
+  if (!hasContent) return null;
+
   return (
     <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-      <p className="text-xs font-semibold text-amber-700 mb-2">청구 이월 내역</p>
-      <div className="space-y-1">
-        {patterns.map((p, i) => (
-          <div key={i} className="flex items-center gap-2 text-xs">
-            <span className="bg-white border border-amber-300 rounded px-2 py-0.5 font-medium text-gray-700">
-              {formatMonth(p.occMonth)} 발생
-            </span>
-            <span className="text-amber-400">→</span>
-            <span className="bg-white border border-amber-300 rounded px-2 py-0.5 font-medium text-gray-700">
-              {formatMonth(p.billMonth)} 청구
-            </span>
-            <span className="text-gray-500">
-              {[...p.hospitals].join(', ')}
-            </span>
-            {p.qty > 0 && <span className="text-amber-600 font-medium">{fmt(p.qty)}건</span>}
-          </div>
-        ))}
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold text-amber-700">청구 이월 내역</p>
+        {onMemoChange && (
+          <button onClick={() => { setDraft(memo || ''); setEditing(!editing); }}
+            className="text-xs text-amber-500 hover:text-amber-700">
+            {editing ? '취소' : '메모 편집'}
+          </button>
+        )}
       </div>
-      {memo && (
-        <p className="mt-2 pt-2 border-t border-amber-200 text-xs text-amber-700 whitespace-pre-wrap">{memo}</p>
+      {carryovers.length > 0 && (
+        <div className="space-y-1 mb-2">
+          {patterns.map((p, i) => (
+            <div key={i} className="flex items-center gap-2 text-xs">
+              <span className="bg-white border border-amber-300 rounded px-2 py-0.5 font-medium text-gray-700">
+                {formatMonth(p.occMonth)} 발생
+              </span>
+              <span className="text-amber-400">→</span>
+              <span className="bg-white border border-amber-300 rounded px-2 py-0.5 font-medium text-gray-700">
+                {formatMonth(p.billMonth)} 청구
+              </span>
+              <span className="text-gray-500">{[...p.hospitals].join(', ')}</span>
+              {p.qty > 0 && <span className="text-amber-600 font-medium">{fmt(p.qty)}건</span>}
+            </div>
+          ))}
+        </div>
       )}
+      {editing ? (
+        <div className="pt-2 border-t border-amber-200">
+          <textarea value={draft} onChange={e => setDraft(e.target.value)}
+            placeholder="이월 관련 메모를 입력하세요"
+            className="w-full border border-amber-300 rounded px-2 py-1.5 text-xs min-h-[50px] resize-y bg-white" />
+          <div className="flex justify-end gap-2 mt-1">
+            <button onClick={() => setEditing(false)} className="text-xs text-gray-400 hover:text-gray-600">취소</button>
+            <button onClick={handleSave} className="text-xs bg-amber-500 text-white px-3 py-1 rounded hover:bg-amber-600">저장</button>
+          </div>
+        </div>
+      ) : memo ? (
+        <p className="pt-2 border-t border-amber-200 text-xs text-amber-700 whitespace-pre-wrap">{memo}</p>
+      ) : null}
     </div>
   );
 }
@@ -202,7 +225,7 @@ function KpiCard({ label, value, unit, change, sub }) {
 // =============================================================================
 // 1. 청구 건수 — 누계 컬럼 추가
 // =============================================================================
-function QtySection({ invoices, hospitalMeta, statsMemo }) {
+function QtySection({ invoices, hospitalMeta, statsMemo, setStatsMemo }) {
   const { basisType, setBasisType, monthKey, years, selectedYear, setSelectedYear, yearData, months } = useCommonFilters(invoices);
   const [productFilter, setProductFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -301,7 +324,7 @@ function QtySection({ invoices, hospitalMeta, statsMemo }) {
           </select>
         </>} />
 
-      <BasisComparisonBanner invoices={invoices} selectedYear={selectedYear} memo={statsMemo} />
+      <BasisComparisonBanner invoices={invoices} selectedYear={selectedYear} memo={statsMemo} onMemoChange={setStatsMemo} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard label="거래처 수" value={hospitalStats.length} unit="곳" />
@@ -379,7 +402,7 @@ function QtySection({ invoices, hospitalMeta, statsMemo }) {
 // =============================================================================
 // 2. 매출 — 필터 강화 + 상급/로컬 소계 + 전월 대비
 // =============================================================================
-function RevenueSection({ invoices, hospitalMeta, statsMemo }) {
+function RevenueSection({ invoices, hospitalMeta, statsMemo, setStatsMemo }) {
   const { basisType, setBasisType, monthKey, years, selectedYear, setSelectedYear, yearData, months } = useCommonFilters(invoices);
   const [productFilter, setProductFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -468,7 +491,7 @@ function RevenueSection({ invoices, hospitalMeta, statsMemo }) {
           </select>
         </>} />
 
-      <BasisComparisonBanner invoices={invoices} selectedYear={selectedYear} memo={statsMemo} />
+      <BasisComparisonBanner invoices={invoices} selectedYear={selectedYear} memo={statsMemo} onMemoChange={setStatsMemo} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard label="총 매출 (공급가액)" value={fmt(grandRevenue)} unit="원" />
