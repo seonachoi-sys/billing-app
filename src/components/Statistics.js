@@ -2,23 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { fmt } from '../utils/calculations';
 import { exportToExcel, exportMultiSheet } from '../utils/exportExcel';
-import seedInvoices from '../data/seedInvoices.json';
-
-// seedInvoices(영문) → ledger 형식(한국어)으로 변환
-const SEED_AS_LEDGER = seedInvoices.map(inv => ({
-  '청구기준': inv.billingMonth,
-  '발생기준': inv.occurrenceMonth,
-  '거래처명': inv.hospital,
-  '진료과': inv.department,
-  '제품명': inv.product,
-  '최종건수': inv.finalQty || 0,
-  '단가': inv.unitPrice || 0,
-  '공급가': inv.supplyAmount || 0,
-  '부가세': inv.tax || 0,
-  '청구금액': inv.totalAmount || 0,
-  '채권상태': inv.status || '',
-  '_source': 'seed',
-}));
+import { mergeLedgerWithSeed } from '../utils/mergeLedger';
 
 // 전월 대비 증감 계산 헬퍼
 function calcChange(current, previous) {
@@ -40,20 +24,7 @@ const Statistics = () => {
   const { ledger, hospitals, statsMemo, setStatsMemo } = useData();
   const [activeSection, setActiveSection] = useState('qty');
 
-  // ledger + seedInvoices 합산 (중복 시 ledger 우선)
-  const mergedLedger = useMemo(() => {
-    const ledgerKeys = new Set();
-    ledger.forEach(item => {
-      const key = `${item['거래처명']}||${item['제품명']}||${item['청구기준']}||${item['발생기준'] || item['청구기준']}`;
-      ledgerKeys.add(key);
-    });
-    // seed 중 ledger에 없는 것만 추가
-    const seedOnly = SEED_AS_LEDGER.filter(s => {
-      const key = `${s['거래처명']}||${s['제품명']}||${s['청구기준']}||${s['발생기준']}`;
-      return !ledgerKeys.has(key);
-    });
-    return [...ledger, ...seedOnly];
-  }, [ledger]);
+  const mergedLedger = useMemo(() => mergeLedgerWithSeed(ledger), [ledger]);
 
   // hospitals(한국어 필드)에서 메타 빌드: 거래처명 → { type, department, salesRep }
   const hospitalMeta = useMemo(() => {

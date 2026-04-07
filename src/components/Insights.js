@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useData } from '../context/DataContext';
 import { calcAllHospitalBEP, calcSummaryKPI } from '../utils/bepCalculations';
 import { fmt } from '../utils/calculations';
+import { mergeLedgerWithSeed } from '../utils/mergeLedger';
 
 // 디자인 색상
 const COLORS = {
@@ -26,7 +27,8 @@ function getBepBgClass() {
 }
 
 const Insights = () => {
-  const { ledger, hospitals, costSettings, hospitalCosts } = useData();
+  const { ledger: rawLedger, hospitals, costSettings, hospitalCosts } = useData();
+  const ledger = useMemo(() => mergeLedgerWithSeed(rawLedger), [rawLedger]);
   const [tierFilter, setTierFilter] = useState('');
 
   const bepData = useMemo(() =>
