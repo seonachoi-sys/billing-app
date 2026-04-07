@@ -150,16 +150,6 @@
     "source": "seed"
   },
   {
-    "month": "2025-09",
-    "hospital": "세브란스병원",
-    "department": "안과",
-    "product": "CAS",
-    "adminQty": 111,
-    "hospitalQty": 109,
-    "diff": 2,
-    "source": "seed"
-  },
-  {
     "month": "2025-10",
     "hospital": "나비샘연합의원",
     "department": "내과",
@@ -227,36 +217,6 @@
     "adminQty": 35,
     "hospitalQty": 30,
     "diff": 5,
-    "source": "seed"
-  },
-  {
-    "month": "2025-10",
-    "hospital": "세브란스병원",
-    "department": "안과",
-    "product": "CAS",
-    "adminQty": 269,
-    "hospitalQty": 267,
-    "diff": 2,
-    "source": "seed"
-  },
-  {
-    "month": "2025-11",
-    "hospital": "세브란스병원",
-    "department": "안과",
-    "product": "CAS",
-    "adminQty": 287,
-    "hospitalQty": 277,
-    "diff": 10,
-    "source": "seed"
-  },
-  {
-    "month": "2025-11",
-    "hospital": "세브란스병원",
-    "department": "안과",
-    "product": "EXO",
-    "adminQty": 205,
-    "hospitalQty": 145,
-    "diff": 60,
     "source": "seed"
   },
   {
@@ -470,16 +430,6 @@
     "source": "seed"
   },
   {
-    "month": "",
-    "hospital": "세브란스병원",
-    "department": "",
-    "product": "EXO",
-    "adminQty": 243,
-    "hospitalQty": 242,
-    "diff": 1,
-    "source": "seed"
-  },
-  {
     "month": "2026-01",
     "hospital": "나비샘연합의원",
     "department": "내과",
@@ -590,16 +540,6 @@
     "source": "seed"
   },
   {
-    "month": "2025-12",
-    "hospital": "세브란스병원",
-    "department": "안과",
-    "product": "EXO",
-    "adminQty": 264,
-    "hospitalQty": 0,
-    "diff": 264,
-    "source": "seed"
-  },
-  {
     "month": "2026-01",
     "hospital": "죽전샘편한내과",
     "department": "내과",
@@ -607,26 +547,6 @@
     "adminQty": 8,
     "hospitalQty": 7,
     "diff": 1,
-    "source": "seed"
-  },
-  {
-    "month": "2026-01",
-    "hospital": "세브란스병원",
-    "department": "안과",
-    "product": "CAS",
-    "adminQty": 276,
-    "hospitalQty": 267,
-    "diff": 9,
-    "source": "seed"
-  },
-  {
-    "month": "2026-01",
-    "hospital": "세브란스병원",
-    "department": "안과",
-    "product": "EXO",
-    "adminQty": 264,
-    "hospitalQty": 258,
-    "diff": 6,
     "source": "seed"
   },
   {
@@ -701,16 +621,6 @@
   },
   {
     "month": "2026-02",
-    "hospital": "세브란스병원",
-    "department": "안과",
-    "product": "CAS",
-    "adminQty": 205,
-    "hospitalQty": 200,
-    "diff": 5,
-    "source": "seed"
-  },
-  {
-    "month": "2026-02",
     "hospital": "대림성모병원",
     "department": "내과",
     "product": "CAS",
@@ -747,16 +657,6 @@
     "adminQty": 9,
     "hospitalQty": 9,
     "diff": 0,
-    "source": "seed"
-  },
-  {
-    "month": "2026-02",
-    "hospital": "세브란스병원",
-    "department": "안과",
-    "product": "EXO",
-    "adminQty": 204,
-    "hospitalQty": 199,
-    "diff": 5,
     "source": "seed"
   },
   {
@@ -937,6 +837,126 @@
     "adminQty": 22,
     "hospitalQty": 7,
     "diff": 15,
+    "source": "seed"
+  },
+  {
+    "month": "2025-09",
+    "hospital": "세브란스병원",
+    "department": "안과",
+    "product": "CAS",
+    "adminQty": 111,
+    "hospitalQty": 109,
+    "diff": 2,
+    "source": "seed"
+  },
+  {
+    "month": "2025-10",
+    "hospital": "세브란스병원",
+    "department": "안과",
+    "product": "CAS",
+    "adminQty": 269,
+    "hospitalQty": 267,
+    "diff": 2,
+    "source": "seed"
+  },
+  {
+    "month": "2025-11",
+    "hospital": "세브란스병원",
+    "department": "안과",
+    "product": "CAS",
+    "adminQty": 287,
+    "hospitalQty": 277,
+    "diff": 10,
+    "source": "seed"
+  },
+  {
+    "month": "2025-12",
+    "hospital": "세브란스병원",
+    "department": "안과",
+    "product": "CAS",
+    "adminQty": 249,
+    "hospitalQty": 247,
+    "diff": 2,
+    "source": "seed"
+  },
+  {
+    "month": "2026-01",
+    "hospital": "세브란스병원",
+    "department": "안과",
+    "product": "CAS",
+    "adminQty": 276,
+    "hospitalQty": 267,
+    "diff": 9,
+    "source": "seed"
+  },
+  {
+    "month": "2026-02",
+    "hospital": "세브란스병원",
+    "department": "안과",
+    "product": "CAS",
+    "adminQty": 205,
+    "hospitalQty": 200,
+    "diff": 5,
+    "source": "seed"
+  },
+  {
+    "month": "2026-03",
+    "hospital": "세브란스병원",
+    "department": "안과",
+    "product": "CAS",
+    "adminQty": 246,
+    "hospitalQty": null,
+    "diff": null,
+    "source": "seed"
+  },
+  {
+    "month": "2025-11",
+    "hospital": "세브란스병원",
+    "department": "안과",
+    "product": "EXO",
+    "adminQty": 205,
+    "hospitalQty": 145,
+    "diff": 60,
+    "source": "seed"
+  },
+  {
+    "month": "2025-12",
+    "hospital": "세브란스병원",
+    "department": "안과",
+    "product": "EXO",
+    "adminQty": 243,
+    "hospitalQty": 242,
+    "diff": 1,
+    "source": "seed"
+  },
+  {
+    "month": "2026-01",
+    "hospital": "세브란스병원",
+    "department": "안과",
+    "product": "EXO",
+    "adminQty": 264,
+    "hospitalQty": 258,
+    "diff": 6,
+    "source": "seed"
+  },
+  {
+    "month": "2026-02",
+    "hospital": "세브란스병원",
+    "department": "안과",
+    "product": "EXO",
+    "adminQty": 204,
+    "hospitalQty": 199,
+    "diff": 5,
+    "source": "seed"
+  },
+  {
+    "month": "2026-03",
+    "hospital": "세브란스병원",
+    "department": "안과",
+    "product": "EXO",
+    "adminQty": 242,
+    "hospitalQty": null,
+    "diff": null,
     "source": "seed"
   }
 ]
