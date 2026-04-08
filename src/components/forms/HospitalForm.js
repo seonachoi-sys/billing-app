@@ -6,7 +6,7 @@ import { generateClientCode, calculateVAT, classifyHospital } from '../../utils/
 const SALES_REPS = ['류성현', '이상신', '이정태', '이경준'];
 
 const HospitalForm = ({ onClose, editHospital = null }) => {
-  const { hospitals, addHospital, updateHospital, addContract } = useData();
+  const { hospitals, addHospital, updateHospital, addContract, products } = useData();
 
   const [form, setForm] = useState({
     '업체코드': '', '병원구분': '의원', '거래처명': '', '진료과': '내과',
@@ -172,8 +172,7 @@ const HospitalForm = ({ onClose, editHospital = null }) => {
               <label className="block text-sm text-gray-600 mb-1">제품명</label>
               <select value={form['제품명']} onChange={set('제품명')}
                 className="w-full border rounded-md px-3 py-2 text-sm">
-                <option value="CAS">CAS</option>
-                <option value="EXO">EXO</option>
+                {products.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
               </select>
             </div>
             <div>

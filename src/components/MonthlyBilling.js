@@ -9,7 +9,7 @@ import EmailSendModal from './EmailSendModal';
 const QTY_TOLERANCE = 20;
 
 const MonthlyBilling = () => {
-  const { ledger, hospitals, addLedgerEntry, updateLedgerEntry, deleteLedgerEntry, generateMonthlyEntries, closeMonth, openMonth, isMonthClosed } = useData();
+  const { ledger, hospitals, addLedgerEntry, updateLedgerEntry, deleteLedgerEntry, generateMonthlyEntries, closeMonth, openMonth, isMonthClosed, products } = useData();
 
   const [billingMonth, setBillingMonth] = useState(() => {
     const d = new Date();
@@ -787,8 +787,7 @@ const MonthlyBilling = () => {
                 <select value={carryover.product}
                   onChange={e => setCarryover(p => ({ ...p, product: e.target.value }))}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm">
-                  <option value="CAS">CAS</option>
-                  <option value="EXO">EXO</option>
+                  {products.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
                 </select>
               </div>
               {carryover.occurrenceMonth && carryover.hospital && (

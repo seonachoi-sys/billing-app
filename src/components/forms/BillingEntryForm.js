@@ -3,7 +3,7 @@ import { useData } from '../../context/DataContext';
 import { calculateVAT, calculateDueDate, fmt } from '../../utils/calculations';
 
 const BillingEntryForm = ({ onClose, editEntry = null }) => {
-  const { hospitals, addLedgerEntry, updateLedgerEntry } = useData();
+  const { hospitals, addLedgerEntry, updateLedgerEntry, products } = useData();
 
   const [form, setForm] = useState({
     '청구기준': '', '발생기준': '', '거래처명': '', '진료과': '',
@@ -147,8 +147,7 @@ const BillingEntryForm = ({ onClose, editEntry = null }) => {
               <select value={form['제품명']}
                 onChange={e => setForm(f => ({ ...f, '제품명': e.target.value }))}
                 className="w-full border rounded-md px-3 py-2 text-sm">
-                <option value="CAS">CAS</option>
-                <option value="EXO">EXO</option>
+                {products.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
               </select>
             </div>
           </div>
