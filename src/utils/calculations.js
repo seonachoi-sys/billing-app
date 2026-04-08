@@ -36,6 +36,7 @@ export function calculateDday(dueDate) {
 export function isOverdue(entry) {
   if (entry['채권상태'] === '완납') return false;
   if (!entry['입금예정일']) return false;
+  if ((entry['미수금'] || 0) <= 0) return false;
   return calculateDday(entry['입금예정일']) > 0;
 }
 
