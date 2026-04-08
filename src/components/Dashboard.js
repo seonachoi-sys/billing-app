@@ -22,9 +22,18 @@ const Dashboard = () => {
   ledger.forEach(item => {
     if (item['채권상태'] === '완납' || !item['입금예정일'] || item['미수금'] <= 0) return;
     const m = item['입금예정일'].slice(0, 7);
-    if (!dueMap[m]) dueMap[m] = { amount: 0, count: 0, overdue: 0, overdueItems: [] };
+    if (!dueMap[m]) dueMap[m] = { amount: 0, count: 0, overdue: 0, overdueItems: [], allItems: [] };
     dueMap[m].amount += item['미수금'];
     dueMap[m].count += 1;
+    dueMap[m].allItems.push({
+      name: item['거래처명'],
+      product: item['제품명'],
+      amount: item['미수금'],
+      billingAmount: item['청구금액'],
+      dday: calculateDday(item['입금예정일']),
+      dueDate: item['입금예정일'],
+      status: item['채권상태'],
+    });
     if (isOverdue(item)) {
       dueMap[m].overdue += 1;
       dueMap[m].overdueItems.push({
@@ -43,6 +52,7 @@ const Dashboard = () => {
     .sort((a, b) => (b.dday || 0) - (a.dday || 0));
 
   const [tooltipMonth, setTooltipMonth] = useState(null);
+  const [expandedDueMonth, setExpandedDueMonth] = useState(null);
 
   return (
     <div className="space-y-6">
@@ -90,44 +100,44 @@ const Dashboard = () => {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {dueMonths.map(m => (
-                  <tr key={m} className={dueMap[m].overdue > 0 ? 'bg-red-50' : 'hover:bg-gray-50'}>
-                    <td className="table-cell font-medium">{m}</td>
-                    <td className="table-cell text-right">{dueMap[m].count}건</td>
-                    <td className="table-cell text-right font-medium">{fmt(dueMap[m].amount)}원</td>
-                    <td className="table-cell text-right relative">
-                      {dueMap[m].overdue > 0 && (
-                        <span
-                          className="badge badge-red cursor-pointer"
-                          onMouseEnter={() => setTooltipMonth(m)}
-                          onMouseLeave={() => setTooltipMonth(null)}
-                        >
-                          {dueMap[m].overdue}건
-                          {tooltipMonth === m && (
-                            <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-red-200 rounded-lg shadow-lg p-3 min-w-[220px] text-left"
-                              onClick={e => e.stopPropagation()}>
-                              <p className="text-xs font-semibold text-red-600 mb-2 border-b border-red-100 pb-1">연체 상세</p>
-                              <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                                {dueMap[m].overdueItems
-                                  .sort((a, b) => b.dday - a.dday)
-                                  .map((oi, idx) => (
-                                  <div key={idx} className="flex items-center justify-between text-xs gap-2">
-                                    <span className="text-gray-700 truncate">{oi.name}</span>
-                                    <div className="flex items-center gap-2 shrink-0">
-                                      <span className="text-gray-500">{fmt(oi.amount)}원</span>
-                                      <span className="text-red-500 font-semibold">D+{oi.dday}</span>
-                                    </div>
-                                  </div>
-                                ))}
+                  <React.Fragment key={m}>
+                    <tr className={`cursor-pointer ${dueMap[m].overdue > 0 ? 'bg-red-50' : 'hover:bg-gray-50'}`}
+                      onClick={() => setExpandedDueMonth(expandedDueMonth === m ? null : m)}>
+                      <td className="table-cell font-medium">
+                        <span className="text-gray-400 mr-1">{expandedDueMonth === m ? '▼' : '▶'}</span>{m}
+                      </td>
+                      <td className="table-cell text-right">{dueMap[m].count}건</td>
+                      <td className="table-cell text-right font-medium">{fmt(dueMap[m].amount)}원</td>
+                      <td className="table-cell text-right">
+                        {dueMap[m].overdue > 0 && <span className="badge badge-red">{dueMap[m].overdue}건 연체</span>}
+                      </td>
+                    </tr>
+                    {expandedDueMonth === m && (
+                      <tr>
+                        <td colSpan="4" className="p-0">
+                          <div className="bg-gray-50 px-4 py-2 space-y-1">
+                            {dueMap[m].allItems
+                              .sort((a, b) => b.amount - a.amount)
+                              .map((item, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-xs py-1 border-b border-gray-100 last:border-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium text-gray-700">{item.name}</span>
+                                  <span className="text-gray-400">{item.product}</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-gray-500">청구 {fmt(item.billingAmount)}원</span>
+                                  <span className="font-medium">미수 {fmt(item.amount)}원</span>
+                                  <span className={item.dday > 0 ? 'text-red-500 font-semibold' : 'text-blue-500'}>
+                                    {item.dday > 0 ? `D+${item.dday}` : `D${item.dday}`}
+                                  </span>
+                                </div>
                               </div>
-                              <p className="text-[10px] text-gray-400 mt-2 pt-1 border-t border-gray-100">
-                                합계 {fmt(dueMap[m].overdueItems.reduce((s, i) => s + i.amount, 0))}원
-                              </p>
-                            </div>
-                          )}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 ))}
                 {dueMonths.length === 0 && (
                   <tr><td colSpan="4" className="table-cell text-center text-gray-400">미수금 없음</td></tr>
