@@ -92,7 +92,10 @@ export async function batchWriteCollection(collectionName, items) {
         const id = item._id;
         if (!id) return;
         const { _id, ...rest } = item;
-        batch.set(doc(db, collectionName, id), rest);
+        // 빈 문자열 키 제거 (Firestore 거부 방지)
+        const cleaned = {};
+        Object.entries(rest).forEach(([k, v]) => { if (k !== '') cleaned[k] = v; });
+        batch.set(doc(db, collectionName, id), cleaned);
       });
       await withTimeout(batch.commit(), 15000);
     }

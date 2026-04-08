@@ -43,12 +43,19 @@ function dedupLedger(items) {
   return Array.from(seen.values());
 }
 
-// 시드 데이터에 _id 부여
+// 빈 키 제거 유틸 (Firestore는 빈 문자열 키를 거부함)
+function cleanEmptyKeys(obj) {
+  const cleaned = {};
+  Object.entries(obj).forEach(([k, v]) => { if (k !== '') cleaned[k] = v; });
+  return cleaned;
+}
+
+// 시드 데이터에 _id 부여 + 빈 키 제거
 function initializeSeed(data) {
   return {
-    ledger: data.ledger.map(item => ({ ...item, _id: item._id || generateId() })),
-    hospitals: data.hospitals.map(item => ({ ...item, _id: item._id || generateId() })),
-    master: data.master.map(item => ({ ...item, _id: item._id || generateId() })),
+    ledger: data.ledger.map(item => ({ ...cleanEmptyKeys(item), _id: item._id || generateId() })),
+    hospitals: data.hospitals.map(item => ({ ...cleanEmptyKeys(item), _id: item._id || generateId() })),
+    master: data.master.map(item => ({ ...cleanEmptyKeys(item), _id: item._id || generateId() })),
     invoiceTemplate: data.invoiceTemplate,
   };
 }
@@ -165,18 +172,21 @@ export function DataProvider({ children }) {
 
         const syncedLedger = await syncCollection(COLLECTIONS.LEDGER, fbLedger, 'billing_ledger', true);
 
-        // 병원 데이터 복구: 비어있거나 영문 필드 오염이면 시드로 교체
+        // 병원 데이터 복구: 비어있거나, 영문 오염이거나, 시드보다 현저히 적으면 시드 병합
         let hospitalsToSync = fbHospitals;
-        const needsHospitalRestore =
-          !fbHospitals || fbHospitals.length === 0 ||
-          !fbHospitals.some(h => h['거래처명']) ||
-          fbHospitals.some(h => h['name'] && !h['거래처명']);
-        if (needsHospitalRestore) {
-          console.warn('⚠️ 병원 데이터 복원 (비어있거나 영문 필드 감지)');
-          await replaceCollection(COLLECTIONS.HOSPITALS, SEED.hospitals).catch(console.error);
-          hospitalsToSync = SEED.hospitals;
-          // localStorage도 시드로 갱신
-          localStorage.setItem('billing_hospitals', JSON.stringify(SEED.hospitals));
+        const seedCount = SEED.hospitals.length;
+        const fbCount = fbHospitals ? fbHospitals.length : 0;
+        const hasEnglishOnly = fbHospitals && fbHospitals.some(h => h['name'] && !h['거래처명']);
+        const needsRestore = fbCount === 0 || hasEnglishOnly || fbCount < seedCount;
+        if (needsRestore) {
+          console.warn(`⚠️ 병원 데이터 복원 (현재 ${fbCount}건, 시드 ${seedCount}건)`);
+          // 기존 데이터와 시드 병합 (시드 기준, 기존에만 있는 건 유지)
+          const seedKeys = new Set(SEED.hospitals.map(h => `${h['거래처명']}||${h['제품명']}`));
+          const existingOnly = (fbHospitals || []).filter(h => h['거래처명'] && !seedKeys.has(`${h['거래처명']}||${h['제품명']}`));
+          const merged = [...SEED.hospitals, ...existingOnly];
+          await replaceCollection(COLLECTIONS.HOSPITALS, merged).catch(console.error);
+          hospitalsToSync = merged;
+          localStorage.setItem('billing_hospitals', JSON.stringify(merged));
         }
         const syncedHospitals = await syncCollection(COLLECTIONS.HOSPITALS, hospitalsToSync, 'billing_hospitals');
         const syncedMaster = await syncCollection(COLLECTIONS.MASTER, fbMaster, 'billing_master');
