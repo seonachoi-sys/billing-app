@@ -329,9 +329,10 @@ export function DataProvider({ children }) {
 
   // --- 월별 자동 생성: 등록된 거래처 기준으로 빈 청구 틀 생성 ---
   const generateMonthlyEntries = useCallback((billingMonth) => {
+    // 해당 월 발생분만 체크 (이월 청구는 발생기준이 다르므로 제외)
     const existing = new Set(
       ledger
-        .filter(l => l['청구기준'] === billingMonth)
+        .filter(l => l['청구기준'] === billingMonth && (l['발생기준'] || l['청구기준']) === billingMonth)
         .map(l => l['거래처명'] + '||' + l['제품명'])
     );
 
