@@ -178,17 +178,31 @@ const Dashboard = () => {
 // Admin vs 병원 건수 대사 — 병원별 누적
 // =============================================================================
 function ReconciliationSection() {
-  const { reconciliation } = useData();
+  const { ledger: rawLedger, products } = useData();
+  const ledger = useMemo(() => filterForStats(mergeLedgerWithSeed(rawLedger), products), [rawLedger, products]);
 
   const currentMonth = useMemo(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   }, []);
 
+  // ledger에서 건수 대사 데이터 빌드
+  const reconData = useMemo(() => {
+    return ledger.map(item => ({
+      hospital: item['거래처명'],
+      month: item['청구기준'],
+      adminQty: parseInt(item['당월발생']) || 0,
+      hospitalQty: item['병원수량'] != null && item['병원수량'] !== '' ? parseInt(item['병원수량']) || 0 : null,
+      diff: item['병원수량'] != null && item['병원수량'] !== ''
+        ? (parseInt(item['당월발생']) || 0) - (parseInt(item['병원수량']) || 0)
+        : null,
+    })).filter(r => r.hospital && (r.adminQty > 0 || (r.hospitalQty != null && r.hospitalQty > 0)));
+  }, [ledger]);
+
   // 병원별 누적 집계
   const hospitalStats = useMemo(() => {
     const map = {};
-    reconciliation.forEach(r => {
+    reconData.forEach(r => {
       if (!map[r.hospital]) map[r.hospital] = { hospital: r.hospital, admin: 0, hospital_: 0, diff: 0, monthSet: new Set(), unconfirmed: 0 };
       map[r.hospital].admin += r.adminQty || 0;
       map[r.hospital].hospital_ += (r.hospitalQty != null ? r.hospitalQty : 0);
@@ -199,27 +213,27 @@ function ReconciliationSection() {
     return Object.values(map)
       .map(h => ({ ...h, months: h.monthSet.size, diffRate: h.hospital_ > 0 ? ((h.diff / h.hospital_) * 100).toFixed(1) : '0.0' }))
       .sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
-  }, [reconciliation]);
+  }, [reconData]);
 
   // 요약
   const totalDiff = hospitalStats.reduce((s, h) => s + Math.abs(h.diff), 0);
   const currentMonthDiff = useMemo(() =>
-    reconciliation.filter(r => r.month === currentMonth && r.diff != null)
+    reconData.filter(r => r.month === currentMonth && r.diff != null)
       .reduce((s, r) => s + Math.abs(r.diff), 0),
-    [reconciliation, currentMonth]
+    [reconData, currentMonth]
   );
-  const unconfirmedCount = reconciliation.filter(r => r.hospitalQty == null).length;
+  const unconfirmedCount = reconData.filter(r => r.hospitalQty == null).length;
 
   // 월별 세부 데이터 (엑셀용)
   const allMonths = useMemo(() =>
-    [...new Set(reconciliation.map(r => r.month))].filter(Boolean).sort(),
-    [reconciliation]
+    [...new Set(reconData.map(r => r.month))].filter(Boolean).sort(),
+    [reconData]
   );
 
   const handleExport = () => {
     // 병원별 월별 매트릭스 생성 (같은 병원+월에 CAS/EXO 합산)
     const monthMap = {};
-    reconciliation.forEach(r => {
+    reconData.forEach(r => {
       if (!monthMap[r.hospital]) monthMap[r.hospital] = {};
       const existing = monthMap[r.hospital][r.month];
       if (existing) {
@@ -261,7 +275,7 @@ function ReconciliationSection() {
     exportToExcel(rows, columns, `건수대사_상세.xlsx`);
   };
 
-  if (reconciliation.length === 0) return null;
+  if (reconData.length === 0) return null;
 
   return (
     <div className="space-y-4">
