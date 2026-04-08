@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { fmt } from '../utils/calculations';
 import { exportToExcel, exportMultiSheet } from '../utils/exportExcel';
-import { mergeLedgerWithSeed } from '../utils/mergeLedger';
+import { mergeLedgerWithSeed, filterForStats } from '../utils/mergeLedger';
 import { buildHospitalMeta } from '../utils/hospitalMeta';
 
 // 전월 대비 증감 계산 헬퍼
@@ -25,7 +25,7 @@ const Statistics = () => {
   const { ledger, hospitals, statsMemo, setStatsMemo, products } = useData();
   const [activeSection, setActiveSection] = useState('qty');
 
-  const mergedLedger = useMemo(() => mergeLedgerWithSeed(ledger), [ledger]);
+  const mergedLedger = useMemo(() => filterForStats(mergeLedgerWithSeed(ledger), products), [ledger, products]);
 
   const hospitalMeta = useMemo(() => buildHospitalMeta(hospitals), [hospitals]);
 

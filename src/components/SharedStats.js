@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { fmt } from '../utils/calculations';
-import { mergeLedgerWithSeed } from '../utils/mergeLedger';
+import { mergeLedgerWithSeed, filterForStats } from '../utils/mergeLedger';
 import { buildHospitalMeta } from '../utils/hospitalMeta';
 
 function calcChange(c, p) {
@@ -20,7 +20,7 @@ const SharedStats = () => {
 
   const hospitalMeta = useMemo(() => buildHospitalMeta(hospitals), [hospitals]);
 
-  const mergedLedger = useMemo(() => mergeLedgerWithSeed(ledger), [ledger]);
+  const mergedLedger = useMemo(() => filterForStats(mergeLedgerWithSeed(ledger), products), [ledger, products]);
 
   if (!firebaseReady) return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">

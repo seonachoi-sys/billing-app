@@ -2,11 +2,11 @@ import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { fmt, calculateDday, isOverdue } from '../utils/calculations';
 import { exportToExcel } from '../utils/exportExcel';
-import { mergeLedgerWithSeed } from '../utils/mergeLedger';
+import { mergeLedgerWithSeed, filterForStats } from '../utils/mergeLedger';
 
 const Dashboard = () => {
-  const { ledger: rawLedger } = useData();
-  const ledger = useMemo(() => mergeLedgerWithSeed(rawLedger), [rawLedger]);
+  const { ledger: rawLedger, products } = useData();
+  const ledger = useMemo(() => filterForStats(mergeLedgerWithSeed(rawLedger), products), [rawLedger, products]);
 
   // KPI
   const totalBilled = ledger.reduce((s, i) => s + (i['청구금액'] || 0), 0);

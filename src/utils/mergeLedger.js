@@ -33,6 +33,18 @@ const SEED_AS_LEDGER = seedInvoices.map(inv => ({
  * @param {Array} ledger - billing_ledger 데이터 (한국어 필드)
  * @returns {Array} 합산된 배열 (중복 시 ledger 우선)
  */
+/**
+ * 통계 제외 제품 필터링
+ * @param {Array} data - ledger 데이터
+ * @param {Array} products - 제품 목록 (excludeFromStats 포함)
+ * @returns {Array} 통계 제외 제품이 빠진 배열
+ */
+export function filterForStats(data, products) {
+  const excluded = new Set((products || []).filter(p => p.excludeFromStats).map(p => p.name));
+  if (excluded.size === 0) return data;
+  return data.filter(item => !excluded.has(item['제품명']));
+}
+
 export function mergeLedgerWithSeed(ledger) {
   const ledgerKeys = new Set();
   ledger.forEach(item => {

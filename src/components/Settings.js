@@ -260,8 +260,15 @@ const Settings = () => {
               <div className="flex-1">
                 <span className="font-medium text-gray-800">{p.name}</span>
                 <span className="text-xs text-gray-400 ml-2">{p.description}</span>
+                {p.excludeFromStats && <span className="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded ml-2">미수금만</span>}
               </div>
               <div className="text-sm text-gray-600">기본단가: {Number(p.defaultPrice).toLocaleString()}원</div>
+              <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
+                <input type="checkbox" checked={!!p.excludeFromStats}
+                  onChange={e => setProducts(prev => prev.map((x, j) => j === i ? { ...x, excludeFromStats: e.target.checked } : x))}
+                  className="rounded border-gray-300" />
+                통계 제외
+              </label>
               <button onClick={() => {
                 if (window.confirm(`${p.name} 제품을 삭제하시겠습니까?`)) {
                   setProducts(prev => prev.filter((_, j) => j !== i));
