@@ -691,26 +691,6 @@
   },
   {
     "month": "2026-02",
-    "hospital": "원광대병원",
-    "department": "안과",
-    "product": "CAS",
-    "adminQty": 11,
-    "hospitalQty": 11,
-    "diff": 0,
-    "source": "seed"
-  },
-  {
-    "month": "2026-02",
-    "hospital": "원광대병원",
-    "department": "안과",
-    "product": "EXO",
-    "adminQty": 11,
-    "hospitalQty": 11,
-    "diff": 0,
-    "source": "seed"
-  },
-  {
-    "month": "2026-02",
     "hospital": "가톨릭대학교 인천성모병원",
     "department": "내과",
     "product": "CAS",
