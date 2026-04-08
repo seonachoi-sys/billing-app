@@ -165,16 +165,18 @@ export function DataProvider({ children }) {
 
         const syncedLedger = await syncCollection(COLLECTIONS.LEDGER, fbLedger, 'billing_ledger', true);
 
-        // 병원 데이터 복구: 영문 필드명(seed 오염)이면 원래 시드로 교체
+        // 병원 데이터 복구: 비어있거나 영문 필드 오염이면 시드로 교체
         let hospitalsToSync = fbHospitals;
-        if (fbHospitals && fbHospitals.length > 0) {
-          const hasKorean = fbHospitals.some(h => h['거래처명']);
-          const hasEnglish = fbHospitals.some(h => h['name'] && !h['거래처명']);
-          if (!hasKorean || hasEnglish) {
-            console.warn('⚠️ 병원 데이터 영문 필드 감지 — 원래 시드로 복원');
-            await replaceCollection(COLLECTIONS.HOSPITALS, SEED.hospitals).catch(console.error);
-            hospitalsToSync = SEED.hospitals;
-          }
+        const needsHospitalRestore =
+          !fbHospitals || fbHospitals.length === 0 ||
+          !fbHospitals.some(h => h['거래처명']) ||
+          fbHospitals.some(h => h['name'] && !h['거래처명']);
+        if (needsHospitalRestore) {
+          console.warn('⚠️ 병원 데이터 복원 (비어있거나 영문 필드 감지)');
+          await replaceCollection(COLLECTIONS.HOSPITALS, SEED.hospitals).catch(console.error);
+          hospitalsToSync = SEED.hospitals;
+          // localStorage도 시드로 갱신
+          localStorage.setItem('billing_hospitals', JSON.stringify(SEED.hospitals));
         }
         const syncedHospitals = await syncCollection(COLLECTIONS.HOSPITALS, hospitalsToSync, 'billing_hospitals');
         const syncedMaster = await syncCollection(COLLECTIONS.MASTER, fbMaster, 'billing_master');
