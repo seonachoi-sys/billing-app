@@ -6,7 +6,7 @@ import HospitalForm from './forms/HospitalForm';
 import { DEFAULT_STEPS, ICON_OPTIONS } from './BillingGuide';
 
 const HospitalManagement = () => {
-  const { hospitals, ledger, master, getHospitalSummary, addHospital, deleteHospital, updateContract, updateHospital } = useData();
+  const { hospitals, ledger, master, getHospitalSummary, addHospital, deleteHospital, updateContract, updateHospital, products } = useData();
   const [selectedName, setSelectedName] = useState(null);
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -607,8 +607,7 @@ const HospitalManagement = () => {
                   <label className="block text-sm text-gray-600 mb-1">제품</label>
                   <select value={addCombo.product} onChange={e => setAddCombo(p => ({ ...p, product: e.target.value }))}
                     className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm">
-                    <option value="CAS">CAS</option>
-                    <option value="EXO">EXO</option>
+                    {products.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
                   </select>
                 </div>
               </div>

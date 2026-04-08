@@ -22,7 +22,7 @@ function ChangeIndicator({ change, unit = '' }) {
 }
 
 const Statistics = () => {
-  const { ledger, hospitals, statsMemo, setStatsMemo } = useData();
+  const { ledger, hospitals, statsMemo, setStatsMemo, products } = useData();
   const [activeSection, setActiveSection] = useState('qty');
 
   const mergedLedger = useMemo(() => mergeLedgerWithSeed(ledger), [ledger]);
@@ -53,9 +53,9 @@ const Statistics = () => {
         ))}
       </div>
 
-      {activeSection === 'qty' && <QtySection ledger={mergedLedger} hospitalMeta={hospitalMeta} statsMemo={statsMemo} setStatsMemo={setStatsMemo} />}
-      {activeSection === 'revenue' && <RevenueSection ledger={mergedLedger} hospitalMeta={hospitalMeta} statsMemo={statsMemo} setStatsMemo={setStatsMemo} />}
-      {activeSection === 'salesRep' && <SalesRepSection ledger={mergedLedger} hospitalMeta={hospitalMeta} />}
+      {activeSection === 'qty' && <QtySection ledger={mergedLedger} hospitalMeta={hospitalMeta} statsMemo={statsMemo} setStatsMemo={setStatsMemo} products={products} />}
+      {activeSection === 'revenue' && <RevenueSection ledger={mergedLedger} hospitalMeta={hospitalMeta} statsMemo={statsMemo} setStatsMemo={setStatsMemo} products={products} />}
+      {activeSection === 'salesRep' && <SalesRepSection ledger={mergedLedger} hospitalMeta={hospitalMeta} products={products} />}
     </div>
   );
 };
@@ -138,7 +138,7 @@ function BasisComparisonBanner({ memo, onMemoChange }) {
   );
 }
 
-function FilterBar({ years, selectedYear, setSelectedYear, basisType, setBasisType, productFilter, setProductFilter, extra }) {
+function FilterBar({ years, selectedYear, setSelectedYear, basisType, setBasisType, productFilter, setProductFilter, extra, products }) {
   return (
     <div className="bg-white rounded-lg shadow p-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -158,7 +158,8 @@ function FilterBar({ years, selectedYear, setSelectedYear, basisType, setBasisTy
         </div>
         <select value={productFilter} onChange={e => setProductFilter(e.target.value)}
           className="border border-gray-300 rounded-md px-3 py-1.5 text-sm">
-          <option value="">전체 제품</option><option value="CAS">CAS</option><option value="EXO">EXO</option>
+          <option value="">전체 제품</option>
+          {(products || []).map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
         </select>
         {extra}
       </div>
@@ -181,7 +182,7 @@ function KpiCard({ label, value, unit, change, sub }) {
 // =============================================================================
 // 1. 청구 건수
 // =============================================================================
-function QtySection({ ledger, hospitalMeta, statsMemo, setStatsMemo }) {
+function QtySection({ ledger, hospitalMeta, statsMemo, setStatsMemo, products }) {
   const { basisType, setBasisType, monthKey, years, selectedYear, setSelectedYear, yearData, months } = useCommonFilters(ledger);
   const [productFilter, setProductFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -261,7 +262,7 @@ function QtySection({ ledger, hospitalMeta, statsMemo, setStatsMemo }) {
   return (
     <div className="space-y-4">
       <FilterBar years={years} selectedYear={selectedYear} setSelectedYear={setSelectedYear}
-        basisType={basisType} setBasisType={setBasisType} productFilter={productFilter} setProductFilter={setProductFilter}
+        basisType={basisType} setBasisType={setBasisType} productFilter={productFilter} setProductFilter={setProductFilter} products={products}
         extra={<>
           <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="border border-gray-300 rounded-md px-3 py-1.5 text-sm">
             <option value="">전체 구분</option><option value="상급">상급</option><option value="로컬">로컬</option>
@@ -327,7 +328,7 @@ function QtySection({ ledger, hospitalMeta, statsMemo, setStatsMemo }) {
 // =============================================================================
 // 2. 매출
 // =============================================================================
-function RevenueSection({ ledger, hospitalMeta, statsMemo, setStatsMemo }) {
+function RevenueSection({ ledger, hospitalMeta, statsMemo, setStatsMemo, products }) {
   const { basisType, setBasisType, monthKey, years, selectedYear, setSelectedYear, yearData, months } = useCommonFilters(ledger);
   const [productFilter, setProductFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -387,7 +388,7 @@ function RevenueSection({ ledger, hospitalMeta, statsMemo, setStatsMemo }) {
   return (
     <div className="space-y-4">
       <FilterBar years={years} selectedYear={selectedYear} setSelectedYear={setSelectedYear}
-        basisType={basisType} setBasisType={setBasisType} productFilter={productFilter} setProductFilter={setProductFilter}
+        basisType={basisType} setBasisType={setBasisType} productFilter={productFilter} setProductFilter={setProductFilter} products={products}
         extra={<>
           <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="border border-gray-300 rounded-md px-3 py-1.5 text-sm">
             <option value="">전체 구분</option><option value="상급">상급</option><option value="로컬">로컬</option></select>
@@ -459,7 +460,7 @@ function RevenueSection({ ledger, hospitalMeta, statsMemo, setStatsMemo }) {
 // =============================================================================
 // 3. 영업담당자별
 // =============================================================================
-function SalesRepSection({ ledger, hospitalMeta }) {
+function SalesRepSection({ ledger, hospitalMeta, products }) {
   const { basisType, setBasisType, monthKey, years, selectedYear, setSelectedYear, yearData, months } = useCommonFilters(ledger);
   const [productFilter, setProductFilter] = useState('');
 
@@ -522,7 +523,7 @@ function SalesRepSection({ ledger, hospitalMeta }) {
   return (
     <div className="space-y-4">
       <FilterBar years={years} selectedYear={selectedYear} setSelectedYear={setSelectedYear}
-        basisType={basisType} setBasisType={setBasisType} productFilter={productFilter} setProductFilter={setProductFilter} />
+        basisType={basisType} setBasisType={setBasisType} productFilter={productFilter} setProductFilter={setProductFilter} products={products} />
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="px-5 py-3 border-b flex items-center justify-between">
           <h3 className="text-sm font-semibold text-gray-700">{selectedYear}년 담당자별 실적 <span className="text-xs font-normal text-orange-500 ml-1">공급가액 기준</span></h3>

@@ -15,7 +15,7 @@ function CI({ change, unit = '' }) {
 }
 
 const SharedStats = () => {
-  const { ledger, hospitals, firebaseReady, firebaseError, statsMemo } = useData();
+  const { ledger, hospitals, firebaseReady, firebaseError, statsMemo, products } = useData();
   const [activeSection, setActiveSection] = useState('qty');
 
   const hospitalMeta = useMemo(() => buildHospitalMeta(hospitals), [hospitals]);
@@ -49,9 +49,9 @@ const SharedStats = () => {
           ))}
         </div>
         {statsMemo && <div className="bg-amber-50 border border-amber-200 rounded-lg p-3"><p className="text-xs font-semibold text-amber-700">청구 이월 메모</p><p className="mt-1 text-xs text-amber-700 whitespace-pre-wrap">{statsMemo}</p></div>}
-        {activeSection === 'qty' && <SQty ledger={mergedLedger} meta={hospitalMeta} />}
-        {activeSection === 'revenue' && <SRevenue ledger={mergedLedger} meta={hospitalMeta} />}
-        {activeSection === 'salesRep' && <SSalesRep ledger={mergedLedger} meta={hospitalMeta} />}
+        {activeSection === 'qty' && <SQty ledger={mergedLedger} meta={hospitalMeta} products={products} />}
+        {activeSection === 'revenue' && <SRevenue ledger={mergedLedger} meta={hospitalMeta} products={products} />}
+        {activeSection === 'salesRep' && <SSalesRep ledger={mergedLedger} meta={hospitalMeta} products={products} />}
       </main>
       <footer className="bg-white border-t border-gray-200 mt-8"><div className="max-w-6xl mx-auto px-4 py-4 text-center text-xs text-gray-400">㈜타이로스코프 매출청구 관리 · 읽기 전용</div></footer>
     </div>
@@ -69,7 +69,7 @@ function useYT(ledger) {
   return { basisType, setBasisType, mk, years, sy: ey, setSy, yd, ms };
 }
 
-function FB({ years, sy, setSy, basisType, setBasisType, pf, setPf, extra }) {
+function FB({ years, sy, setSy, basisType, setBasisType, pf, setPf, extra, products }) {
   return (<div className="bg-white rounded-lg shadow p-4"><div className="flex flex-wrap items-center gap-3">
     <div className="flex gap-1">{years.map(y => <button key={y} onClick={() => setSy(y)} className={`px-4 py-1.5 rounded-md text-sm font-medium ${sy === y ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600'}`}>{y}</button>)}</div>
     <div className="w-px h-6 bg-gray-300" />
@@ -78,19 +78,19 @@ function FB({ years, sy, setSy, basisType, setBasisType, pf, setPf, extra }) {
       <button onClick={() => setBasisType('billing')} className={`px-3 py-1 rounded text-xs font-medium ${basisType === 'billing' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>청구기준</button>
     </div>
     <select value={pf} onChange={e => setPf(e.target.value)} className="border border-gray-300 rounded-md px-3 py-1.5 text-sm">
-      <option value="">전체 제품</option><option value="CAS">CAS</option><option value="EXO">EXO</option></select>
+      <option value="">전체 제품</option>{(products || []).map(p => <option key={p.name} value={p.name}>{p.name}</option>)}</select>
     {extra}
   </div></div>);
 }
 
-function SQty({ ledger, meta }) {
+function SQty({ ledger, meta, products }) {
   const { basisType, setBasisType, mk, years, sy, setSy, yd, ms } = useYT(ledger);
   const [pf, setPf] = useState(''); const [tf, setTf] = useState(''); const [df, setDf] = useState('');
   const f = useMemo(() => yd.filter(i => { if (pf && i['제품명']!==pf) return false; if (tf && (meta[i['거래처명']]||{}).type!==tf) return false; if (df && i['진료과']!==df) return false; return true; }), [yd, pf, tf, df, meta]);
   const hs = useMemo(() => { const m = {}; f.forEach(i => { const h=i['거래처명']; if(!h) return; const mt=meta[h]||{}; const mo=i[mk]||i['청구기준']; if(!m[h]) m[h]={hospital:h,type:mt.type||'',dept:mt.department||'',total:0,months:{}}; m[h].months[mo]=(m[h].months[mo]||0)+(i['최종건수']||0); m[h].total+=i['최종건수']||0; }); return Object.values(m).sort((a,b)=>b.total-a.total); }, [f, mk, meta]);
   const gt = hs.reduce((s,h) => s+h.total, 0);
   return (<div className="space-y-4">
-    <FB years={years} sy={sy} setSy={setSy} basisType={basisType} setBasisType={setBasisType} pf={pf} setPf={setPf}
+    <FB years={years} sy={sy} setSy={setSy} basisType={basisType} setBasisType={setBasisType} pf={pf} setPf={setPf} products={products}
       extra={<><select value={tf} onChange={e=>setTf(e.target.value)} className="border border-gray-300 rounded-md px-3 py-1.5 text-sm"><option value="">전체 구분</option><option value="상급">상급</option><option value="로컬">로컬</option></select>
         <select value={df} onChange={e=>setDf(e.target.value)} className="border border-gray-300 rounded-md px-3 py-1.5 text-sm"><option value="">전체 진료과</option><option value="안과">안과</option><option value="내과">내과</option></select></>} />
     <div className="grid grid-cols-3 gap-4">
@@ -122,7 +122,7 @@ function SQty({ ledger, meta }) {
   </div>);
 }
 
-function SRevenue({ ledger, meta }) {
+function SRevenue({ ledger, meta, products }) {
   const { basisType, setBasisType, mk, years, sy, setSy, yd, ms } = useYT(ledger);
   const [pf, setPf] = useState(''); const [tf, setTf] = useState('');
   const f = useMemo(() => { let d = pf ? yd.filter(i=>i['제품명']===pf) : yd; if (tf) d=d.filter(i=>(meta[i['거래처명']]||{}).type===tf); return d; }, [yd, pf, tf, meta]);
@@ -130,7 +130,7 @@ function SRevenue({ ledger, meta }) {
   const gr = hs.reduce((s,h)=>s+h.revenue,0); const gq = hs.reduce((s,h)=>s+h.qty,0);
   const sg = hs.filter(h=>h.type==='상급'); const lc = hs.filter(h=>h.type==='로컬');
   return (<div className="space-y-4">
-    <FB years={years} sy={sy} setSy={setSy} basisType={basisType} setBasisType={setBasisType} pf={pf} setPf={setPf}
+    <FB years={years} sy={sy} setSy={setSy} basisType={basisType} setBasisType={setBasisType} pf={pf} setPf={setPf} products={products}
       extra={<select value={tf} onChange={e=>setTf(e.target.value)} className="border border-gray-300 rounded-md px-3 py-1.5 text-sm"><option value="">전체 구분</option><option value="상급">상급</option><option value="로컬">로컬</option></select>} />
     <div className="grid grid-cols-3 gap-4">
       <div className="bg-white rounded-lg shadow p-4"><p className="text-xs text-gray-500">총 매출 <span className="text-orange-400">(공급가액)</span></p><p className="text-2xl font-bold text-gray-800">{fmt(gr)}<span className="text-sm font-normal text-gray-400">원</span></p></div>
@@ -164,14 +164,14 @@ function SRevenue({ ledger, meta }) {
   </div>);
 }
 
-function SSalesRep({ ledger, meta }) {
+function SSalesRep({ ledger, meta, products }) {
   const { basisType, setBasisType, mk, years, sy, setSy, yd, ms } = useYT(ledger);
   const [pf, setPf] = useState('');
   const f = useMemo(() => pf ? yd.filter(i=>i['제품명']===pf) : yd, [yd, pf]);
   const rs = useMemo(() => { const m={}; f.forEach(i=>{ const rep=(meta[i['거래처명']]||{}).salesRep; if(!rep) return; if(!m[rep]) m[rep]={rep,revenue:0,qty:0,hc:new Set(),mq:{},hd:{}}; m[rep].revenue+=i['공급가']||0; m[rep].qty+=i['최종건수']||0; m[rep].hc.add(i['거래처명']); const mo=i[mk]||i['청구기준']; m[rep].mq[mo]=(m[rep].mq[mo]||0)+(i['최종건수']||0); const hn=i['거래처명']; if(!m[rep].hd[hn]) m[rep].hd[hn]={hospital:hn,type:(meta[hn]||{}).type||'',revenue:0,qty:0,mq:{}}; m[rep].hd[hn].revenue+=i['공급가']||0; m[rep].hd[hn].qty+=i['최종건수']||0; m[rep].hd[hn].mq[mo]=(m[rep].hd[hn].mq[mo]||0)+(i['최종건수']||0); }); return Object.values(m).map(r=>({...r,hc:r.hc.size,hl:Object.values(r.hd).sort((a,b)=>b.revenue-a.revenue)})).sort((a,b)=>b.revenue-a.revenue); }, [f, meta, mk]);
   const gr = rs.reduce((s,r)=>s+r.revenue,0);
   return (<div className="space-y-4">
-    <FB years={years} sy={sy} setSy={setSy} basisType={basisType} setBasisType={setBasisType} pf={pf} setPf={setPf} />
+    <FB years={years} sy={sy} setSy={setSy} basisType={basisType} setBasisType={setBasisType} pf={pf} setPf={setPf} products={products} />
     <div className="bg-white rounded-lg shadow overflow-hidden">
       <div className="px-5 py-3 border-b"><h3 className="text-sm font-semibold text-gray-700">{sy}년 담당자별 실적 <span className="text-xs font-normal text-orange-500 ml-1">공급가액 기준</span></h3></div>
       <div className="overflow-x-auto"><table className="min-w-full divide-y divide-gray-200 text-sm">
