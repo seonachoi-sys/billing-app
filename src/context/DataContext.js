@@ -68,6 +68,10 @@ export function DataProvider({ children }) {
   const [hospitals, setHospitalsRaw] = useLocalStorage('billing_hospitals', SEED.hospitals);
   const [master, setMaster] = useLocalStorage('billing_master', SEED.master);
   const [invoiceTemplate] = useLocalStorage('billing_template', SEED.invoiceTemplate);
+  const [products] = useLocalStorage('billing_products', [
+    { name: 'CAS', defaultPrice: 15000, description: 'Glandy CAS' },
+    { name: 'EXO', defaultPrice: 15000, description: 'Glandy EXO' },
+  ]);
   const [notifiedIds, setNotifiedIds] = useLocalStorage('billing_notified', []);
   const [costSettings, setCostSettings] = useLocalStorage('billing_cost_settings', { ...DEFAULT_COST_SETTINGS });
   const [hospitalCosts, setHospitalCosts] = useLocalStorage('billing_hospital_costs', {});
@@ -540,6 +544,7 @@ export function DataProvider({ children }) {
     closeMonth, openMonth, isMonthClosed,
     invoices, reconciliation, seedingStatus,
     statsMemo, setStatsMemo,
+    products,
   };
 
   return (

@@ -42,6 +42,11 @@ const Settings = () => {
   const [autoNotify, setAutoNotify] = useLocalStorage('billing_auto_notify', true);
   const [lastNotifyDate, setLastNotifyDate] = useLocalStorage('billing_last_notify_date', '');
   const [testResult, setTestResult] = useState('');
+  const [products, setProducts] = useLocalStorage('billing_products', [
+    { name: 'CAS', defaultPrice: 15000, description: 'Glandy CAS' },
+    { name: 'EXO', defaultPrice: 15000, description: 'Glandy EXO' },
+  ]);
+  const [newProduct, setNewProduct] = useState({ name: '', defaultPrice: '', description: '' });
 
   // 앱 로드 시 자동 알림 (하루 1회)
   useEffect(() => {
@@ -244,6 +249,47 @@ const Settings = () => {
           className="w-full bg-amber-500 text-white px-4 py-3 rounded-md text-sm font-medium hover:bg-amber-600">
           지금 알림 발송 (Slack + 이메일)
         </button>
+      </div>
+
+      {/* 제품 관리 */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-bold text-gray-800 mb-4">제품 관리</h3>
+        <div className="space-y-3 mb-4">
+          {products.map((p, i) => (
+            <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+              <div className="flex-1">
+                <span className="font-medium text-gray-800">{p.name}</span>
+                <span className="text-xs text-gray-400 ml-2">{p.description}</span>
+              </div>
+              <div className="text-sm text-gray-600">기본단가: {Number(p.defaultPrice).toLocaleString()}원</div>
+              <button onClick={() => {
+                if (window.confirm(`${p.name} 제품을 삭제하시겠습니까?`)) {
+                  setProducts(prev => prev.filter((_, j) => j !== i));
+                }
+              }} className="text-xs text-gray-400 hover:text-red-500">삭제</button>
+            </div>
+          ))}
+        </div>
+        <div className="border-t pt-4">
+          <p className="text-sm font-medium text-gray-700 mb-2">제품 추가</p>
+          <div className="flex gap-2">
+            <input type="text" placeholder="제품명" value={newProduct.name}
+              onChange={e => setNewProduct(p => ({ ...p, name: e.target.value }))}
+              className="border border-gray-300 rounded-md px-3 py-2 text-sm w-24" />
+            <input type="number" placeholder="기본단가" value={newProduct.defaultPrice}
+              onChange={e => setNewProduct(p => ({ ...p, defaultPrice: e.target.value }))}
+              className="border border-gray-300 rounded-md px-3 py-2 text-sm w-28" />
+            <input type="text" placeholder="설명 (선택)" value={newProduct.description}
+              onChange={e => setNewProduct(p => ({ ...p, description: e.target.value }))}
+              className="border border-gray-300 rounded-md px-3 py-2 text-sm flex-1" />
+            <button onClick={() => {
+              if (!newProduct.name) { alert('제품명을 입력해주세요.'); return; }
+              if (products.some(p => p.name === newProduct.name)) { alert('이미 존재하는 제품명입니다.'); return; }
+              setProducts(prev => [...prev, { name: newProduct.name, defaultPrice: Number(newProduct.defaultPrice) || 0, description: newProduct.description }]);
+              setNewProduct({ name: '', defaultPrice: '', description: '' });
+            }} className="bg-blue-500 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-600 whitespace-nowrap">추가</button>
+          </div>
+        </div>
       </div>
 
       {/* Firebase 상태 */}
