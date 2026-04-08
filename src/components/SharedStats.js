@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { fmt } from '../utils/calculations';
+import { exportToExcel, exportMultiSheet } from '../utils/exportExcel';
 import { mergeLedgerWithSeed, filterForStats } from '../utils/mergeLedger';
 import { buildHospitalMeta } from '../utils/hospitalMeta';
 
@@ -99,7 +100,27 @@ function SQty({ ledger, meta, products }) {
       <div className="bg-white rounded-lg shadow p-4"><p className="text-xs text-gray-500">거래처당 평균</p><p className="text-2xl font-bold text-gray-700">{hs.length>0?Math.round(gt/hs.length):0}<span className="text-sm font-normal text-gray-400">건</span></p></div>
     </div>
     <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="px-5 py-3 border-b"><h3 className="text-sm font-semibold text-gray-700">{sy}년 청구 건수 <span className="text-xs font-normal text-gray-400">({basisType==='occurrence'?'발생':'청구'}기준)</span></h3></div>
+      <div className="px-5 py-3 border-b flex items-center justify-between"><h3 className="text-sm font-semibold text-gray-700">{sy}년 청구 건수 <span className="text-xs font-normal text-gray-400">({basisType==='occurrence'?'발생':'청구'}기준)</span></h3>
+        <button onClick={() => {
+          const buildSheet = (basis) => {
+            const bmk = basis === 'occurrence' ? '발생기준' : '청구기준';
+            let base = ledger.filter(i => ((i[bmk]||i['청구기준'])||'').startsWith(sy));
+            if (pf) base = base.filter(i => i['제품명'] === pf);
+            if (tf) base = base.filter(i => (meta[i['거래처명']]||{}).type === tf);
+            if (df) base = base.filter(i => i['진료과'] === df);
+            const bms = [...new Set(base.map(i => i[bmk]||i['청구기준']))].filter(Boolean).sort();
+            const map = {};
+            base.forEach(item => { const h=item['거래처명']; if(!h) return; const mt=meta[h]||{}; const m=item[bmk]||item['청구기준'];
+              if(!map[h]) map[h]={hospital:h,type:mt.type||'',dept:mt.department||'',total:0,months:{}}; map[h].months[m]=(map[h].months[m]||0)+(item['최종건수']||0); map[h].total+=item['최종건수']||0; });
+            const stats = Object.values(map).sort((a,b)=>b.total-a.total);
+            const cols = [{key:'rank',header:'순위',width:6},{key:'hospital',header:'거래처명',width:25},{key:'type',header:'구분',width:8},{key:'dept',header:'진료과',width:8},
+              ...bms.flatMap(m=>[{key:m,header:m,width:10},{key:`cum_${m}`,header:`${m} 누계`,width:10}]),{key:'total',header:'합계',width:10}];
+            const rows = stats.map((h,i)=>{ const row={rank:i+1,hospital:h.hospital,type:h.type,dept:h.dept,total:h.total}; let cum=0; bms.forEach(m=>{const v=h.months[m]||0;cum+=v;row[m]=v;row[`cum_${m}`]=cum;}); return row; });
+            return {name:basis==='occurrence'?'발생기준':'청구기준',data:rows,columns:cols};
+          };
+          exportMultiSheet([buildSheet('occurrence'),buildSheet('billing')], `청구건수_${sy}.xlsx`);
+        }} className="text-xs bg-green-500 text-white px-3 py-1.5 rounded hover:bg-green-600">엑셀 다운로드</button>
+      </div>
       <div className="overflow-x-auto max-h-[500px] overflow-y-auto"><table className="min-w-full divide-y divide-gray-200 text-sm">
         <thead className="bg-gray-50 sticky top-0"><tr>
           <th className="table-header px-3 py-2 text-center w-10">순위</th><th className="table-header px-3 py-2 text-left">거래처명</th><th className="table-header px-3 py-2 text-center">구분</th><th className="table-header px-3 py-2 text-center">진료과</th>
@@ -138,7 +159,17 @@ function SRevenue({ ledger, meta, products }) {
       <div className="bg-white rounded-lg shadow p-4"><p className="text-xs text-gray-500">거래처당 평균</p><p className="text-2xl font-bold text-gray-700">{hs.length>0?fmt(Math.round(gr/hs.length)):'0'}<span className="text-sm font-normal text-gray-400">원</span></p></div>
     </div>
     <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="px-5 py-3 border-b"><h3 className="text-sm font-semibold text-gray-700">{sy}년 매출 <span className="text-xs font-normal text-orange-500 ml-1">공급가액 기준</span></h3></div>
+      <div className="px-5 py-3 border-b flex items-center justify-between"><h3 className="text-sm font-semibold text-gray-700">{sy}년 매출 <span className="text-xs font-normal text-orange-500 ml-1">공급가액 기준</span></h3>
+        <button onClick={() => {
+          const detailCols = [{key:'hospital',header:'거래처명',width:25},{key:'type',header:'구분',width:8},{key:'occMonth',header:'발생월',width:10},{key:'billMonth',header:'청구월',width:10},
+            {key:'product',header:'제품',width:8},{key:'qty',header:'건수',width:8},{key:'unitPrice',header:'단가',width:12},{key:'supply',header:'공급가',width:12},{key:'vat',header:'부가세',width:12},{key:'total',header:'청구금액',width:12},{key:'status',header:'상태',width:8}];
+          const detailRows = f.sort((a,b)=>(a['거래처명']||'').localeCompare(b['거래처명'])||(a['청구기준']||'').localeCompare(b['청구기준']))
+            .map(i=>({hospital:i['거래처명'],type:(meta[i['거래처명']]||{}).type||'',occMonth:i['발생기준']||i['청구기준'],billMonth:i['청구기준'],product:i['제품명'],qty:i['최종건수'],unitPrice:i['단가'],supply:i['공급가'],vat:i['부가세'],total:i['청구금액'],status:i['채권상태']}));
+          const sumCols = [{key:'rank',header:'순위',width:6},{key:'hospital',header:'거래처명',width:25},{key:'type',header:'구분',width:8},{key:'qty',header:'건수',width:10},{key:'revenue',header:'공급가 합계',width:15},{key:'pct',header:'비율',width:8}];
+          const sumRows = hs.map((h,i)=>({rank:i+1,hospital:h.hospital,type:h.type,qty:h.qty,revenue:h.revenue,pct:gr>0?`${((h.revenue/gr)*100).toFixed(1)}%`:'-'}));
+          exportMultiSheet([{name:'누적',data:sumRows,columns:sumCols},{name:'월별상세',data:detailRows,columns:detailCols}], `매출_${sy}.xlsx`);
+        }} className="text-xs bg-green-500 text-white px-3 py-1.5 rounded hover:bg-green-600">엑셀 다운로드</button>
+      </div>
       <div className="overflow-x-auto max-h-[500px] overflow-y-auto"><table className="min-w-full divide-y divide-gray-200 text-sm">
         <thead className="bg-gray-50 sticky top-0"><tr>
           <th className="table-header px-3 py-2 text-center w-10">순위</th><th className="table-header px-3 py-2 text-left">거래처명</th><th className="table-header px-3 py-2 text-center">구분</th>
@@ -173,7 +204,18 @@ function SSalesRep({ ledger, meta, products }) {
   return (<div className="space-y-4">
     <FB years={years} sy={sy} setSy={setSy} basisType={basisType} setBasisType={setBasisType} pf={pf} setPf={setPf} products={products} />
     <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="px-5 py-3 border-b"><h3 className="text-sm font-semibold text-gray-700">{sy}년 담당자별 실적 <span className="text-xs font-normal text-orange-500 ml-1">공급가액 기준</span></h3></div>
+      <div className="px-5 py-3 border-b flex items-center justify-between"><h3 className="text-sm font-semibold text-gray-700">{sy}년 담당자별 실적 <span className="text-xs font-normal text-orange-500 ml-1">공급가액 기준</span></h3>
+        <button onClick={() => {
+          const sumCols=[{key:'rep',header:'담당자',width:10},{key:'hc',header:'거래처 수',width:10},{key:'qty',header:'건수',width:10},{key:'revenue',header:'매출(공급가)',width:15},{key:'pct',header:'비율',width:8}];
+          const sumRows=rs.map(r=>({rep:r.rep,hc:r.hc,qty:r.qty,revenue:r.revenue,pct:gr>0?`${((r.revenue/gr)*100).toFixed(1)}%`:'-'}));
+          const detCols=[{key:'rep',header:'담당자',width:10},{key:'hospital',header:'거래처명',width:25},{key:'type',header:'구분',width:8},{key:'occMonth',header:'발생월',width:10},{key:'billMonth',header:'청구월',width:10},
+            {key:'product',header:'제품',width:8},{key:'qty',header:'건수',width:8},{key:'unitPrice',header:'단가',width:12},{key:'supply',header:'공급가',width:12},{key:'total',header:'청구금액',width:12},{key:'status',header:'상태',width:8}];
+          const detRows=f.filter(i=>(meta[i['거래처명']]||{}).salesRep)
+            .sort((a,b)=>((meta[a['거래처명']]||{}).salesRep||'').localeCompare((meta[b['거래처명']]||{}).salesRep||'')||(a['거래처명']||'').localeCompare(b['거래처명']))
+            .map(i=>({rep:(meta[i['거래처명']]||{}).salesRep||'',hospital:i['거래처명'],type:(meta[i['거래처명']]||{}).type||'',occMonth:i['발생기준']||i['청구기준'],billMonth:i['청구기준'],product:i['제품명'],qty:i['최종건수'],unitPrice:i['단가'],supply:i['공급가'],total:i['청구금액'],status:i['채권상태']}));
+          exportMultiSheet([{name:'담당자별누적',data:sumRows,columns:sumCols},{name:'병원별상세',data:detRows,columns:detCols}], `영업담당자_${sy}.xlsx`);
+        }} className="text-xs bg-green-500 text-white px-3 py-1.5 rounded hover:bg-green-600">엑셀 다운로드</button>
+      </div>
       <div className="overflow-x-auto"><table className="min-w-full divide-y divide-gray-200 text-sm">
         <thead className="bg-gray-50"><tr>
           <th className="table-header px-4 py-3 text-left">담당자</th><th className="table-header px-3 py-3 text-right">거래처</th>
