@@ -476,9 +476,9 @@
     "totalAmount": 604500,
     "settlementDays": 180,
     "dueDate": "2026-04-29",
-    "paidDate": "",
-    "receivable": 604500,
-    "status": "정상",
+    "paidDate": "2026-04-30",
+    "receivable": 0,
+    "status": "완납",
     "locked": true,
     "note": "",
     "source": "seed"
